@@ -100,7 +100,7 @@ namespace TicTacToeRoguelike.Presentation.Encounters
 
             _catalog = ActionCatalog.CreateDefault(moveValidator, moveService);
 
-            ActionExecutor executor = new ActionExecutor(_catalog);
+            ActionExecutor executor = ActionExecutor.CreateWithCatalog(_catalog);
             ActionAvailabilityService availability =
                 new ActionAvailabilityService(
                     moveValidator,
