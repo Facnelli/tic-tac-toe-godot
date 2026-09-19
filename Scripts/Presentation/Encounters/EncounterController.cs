@@ -193,7 +193,6 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             AfterAuthoritativeAction();
         }
 
-        [Callable]
         private void RunEnemyTurn()
         {
             _enemyTurnScheduled = false;
@@ -253,7 +252,7 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                 _engine.State.CurrentActor == ScoreActor.Enemy)
             {
                 _enemyTurnScheduled = true;
-                CallDeferred(nameof(RunEnemyTurn));
+                Callable.From(RunEnemyTurn).CallDeferred();
             }
         }
 
