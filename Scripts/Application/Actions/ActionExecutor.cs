@@ -11,18 +11,28 @@ namespace TicTacToeRoguelike.Application.Actions
         private readonly ActionCatalog _catalog;
 
         public ActionExecutor()
-            : this(ActionCatalog.CreateDefault())
+            : this(ActionCatalog.CreateDefault(), internalComposition: true)
         {
         }
 
         public ActionExecutor(MoveService moveService)
-            : this(ActionCatalog.CreateDefault(new MoveValidator(), moveService))
+            : this(
+                ActionCatalog.CreateDefault(
+                    new MoveValidator(),
+                    moveService ?? throw new ArgumentNullException(nameof(moveService))),
+                internalComposition: true)
         {
         }
 
-        public ActionExecutor(ActionCatalog catalog)
+        private ActionExecutor(ActionCatalog catalog, bool internalComposition)
         {
             _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        }
+
+        public static ActionExecutor CreateWithCatalog(ActionCatalog catalog)
+        {
+            if (catalog == null) throw new ArgumentNullException(nameof(catalog));
+            return new ActionExecutor(catalog, internalComposition: true);
         }
 
         public ActionResult Execute(
