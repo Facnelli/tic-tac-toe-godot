@@ -1,0 +1,28 @@
+name: Godot .NET CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore tests
+        run: dotnet restore Tests/TicTacToeRoguelike.Tests.csproj
+
+      - name: Build Godot C# project
+        run: dotnet build TicTacToeRoguelike.Godot.csproj --configuration Release --no-restore
+
+      - name: Run regression suite
+        run: dotnet test Tests/TicTacToeRoguelike.Tests.csproj --configuration Release --no-restore
