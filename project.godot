@@ -1,0 +1,26 @@
+; Engine configuration file.
+; Godot 4.7.2 .NET migration of TicTacToe Roguelike.
+
+config_version=5
+
+[application]
+
+config/name="TicTacToe Roguelike"
+run/main_scene="res://Scenes/Gameplay.tscn"
+
+[display]
+
+window/size/viewport_width=720
+window/size/viewport_height=900
+window/size/window_width_override=720
+window/size/window_height_override=900
+window/stretch/mode="canvas_items"
+
+[dotnet]
+
+project/assembly_name="TicTacToeRoguelike.Godot"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
