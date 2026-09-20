@@ -18,8 +18,8 @@ using TicTacToeRoguelike.Presentation.Combat;
 namespace TicTacToeRoguelike.Presentation.Encounters
 {
     /// <summary>
-    /// Composition root do encontro e da primeira versão da arena mística.
-    /// A apresentação usa apenas estado e relatórios já resolvidos pelo domínio.
+    /// Composition root do encontro e da arena mística.
+    /// A apresentação usa somente estado e relatórios já resolvidos pelo domínio.
     /// </summary>
     public sealed partial class EncounterController : Control
     {
@@ -30,6 +30,8 @@ namespace TicTacToeRoguelike.Presentation.Encounters
         private static readonly Color Cyan = new Color(0.08f, 0.82f, 0.84f, 1f);
         private static readonly Color Rose = new Color(1.00f, 0.31f, 0.40f, 1f);
         private static readonly Color PanelDark = new Color(0.018f, 0.022f, 0.026f, 0.94f);
+
+        private const double ScoreSideDelay = 0.24;
 
         private EncounterEngine _engine;
         private ActionCatalog _catalog;
@@ -45,6 +47,8 @@ namespace TicTacToeRoguelike.Presentation.Encounters
         private Label _enemyScoreLabel;
         private Label _playerMultiplierLabel;
         private Label _enemyMultiplierLabel;
+        private Label _playerScoreDetailLabel;
+        private Label _enemyScoreDetailLabel;
 
         private ProgressBar _playerHpBar;
         private ProgressBar _enemyHpBar;
@@ -53,11 +57,93 @@ namespace TicTacToeRoguelike.Presentation.Encounters
         private int _encounterGeneration;
         private bool _enemyTurnScheduled;
 
+        private bool _scoreAnimationActive;
+        private RoundResolution _animatedResolution;
+        private int _scoreAnimationSide;
+        private int _scoreAnimationStep;
+        private double _scoreStepElapsed;
+
         public override void _Ready()
         {
             BuildInterface();
             ComposeEncounter();
             StartFirstRound();
+            SetProcess(false);
+        }
+
+        public override void _Process(double delta)
+        {
+            if (!_scoreAnimationActive || _animatedResolution == null)
+            {
+                SetProcess(false);
+                return;
+            }
+
+            if (_scoreStepElapsed < 0d)
+            {
+                _scoreStepElapsed += delta;
+                return;
+            }
+
+            ScorePipelineResult result = _scoreAnimationSide == 0
+                ? _animatedResolution.PlayerScore
+                : _animatedResolution.EnemyScore;
+
+            Label scoreLabel = _scoreAnimationSide == 0
+                ? _playerScoreLabel
+                : _enemyScoreLabel;
+
+            Label multiplierLabel = _scoreAnimationSide == 0
+                ? _playerMultiplierLabel
+                : _enemyMultiplierLabel;
+
+            Label detailLabel = _scoreAnimationSide == 0
+                ? _playerScoreDetailLabel
+                : _enemyScoreDetailLabel;
+
+            IReadOnlyList<ScoreStep> steps = result.Breakdown.Steps;
+
+            if (_scoreAnimationStep >= steps.Count)
+            {
+                scoreLabel.Text =
+                    result.Breakdown.FinalScore.ToString(CultureInfo.InvariantCulture);
+                multiplierLabel.Text =
+                    $"MULT × {FormatMultiplier(result.Breakdown.TotalMultiplier)}";
+                detailLabel.Text = steps.Count == 0 ? "SEM PONTOS" : "TOTAL";
+
+                AdvanceScoreAnimationSide();
+                return;
+            }
+
+            ScoreStep step = steps[_scoreAnimationStep];
+            double duration = GetScoreStepDuration(steps.Count);
+            _scoreStepElapsed += delta;
+
+            double progress = Math.Clamp(
+                _scoreStepElapsed / duration,
+                0d,
+                1d);
+
+            double eased = 1d - Math.Pow(1d - progress, 3d);
+            double before = (double)step.ScoreBefore;
+            double after = (double)step.ScoreAfter;
+            double visibleScore = before + ((after - before) * eased);
+
+            scoreLabel.Text = FormatAnimatedScore(visibleScore);
+            detailLabel.Text = BuildScoreStepText(step);
+
+            if (progress < 1d)
+                return;
+
+            _scoreAnimationStep++;
+            _scoreStepElapsed = -0.07d;
+
+            decimal visibleMultiplier = CalculateVisibleMultiplier(
+                result.Breakdown,
+                _scoreAnimationStep);
+
+            multiplierLabel.Text =
+                $"MULT × {FormatMultiplier(visibleMultiplier)}";
         }
 
         private void BuildInterface()
@@ -94,14 +180,16 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             PanelContainer playerScore = CreateScorePanel(
                 Cyan,
                 out _playerScoreLabel,
-                out _playerMultiplierLabel);
+                out _playerMultiplierLabel,
+                out _playerScoreDetailLabel);
             Place(playerScore, 0.750f, 0.225f, 0.915f, 0.430f);
             layout.AddChild(playerScore);
 
             PanelContainer enemyScore = CreateScorePanel(
                 Rose,
                 out _enemyScoreLabel,
-                out _enemyMultiplierLabel);
+                out _enemyMultiplierLabel,
+                out _enemyScoreDetailLabel);
             Place(enemyScore, 0.750f, 0.465f, 0.915f, 0.670f);
             layout.AddChild(enemyScore);
 
@@ -134,7 +222,6 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             column.AddChild(heading);
             column.AddChild(CreateDivider());
 
-            // Sem placeholders: a área fica realmente vazia até existirem runas.
             Control emptyRuneArea = new Control
             {
                 SizeFlagsVertical = SizeFlags.ExpandFill,
@@ -224,26 +311,31 @@ namespace TicTacToeRoguelike.Presentation.Encounters
         private PanelContainer CreateScorePanel(
             Color accent,
             out Label score,
-            out Label multiplier)
+            out Label multiplier,
+            out Label detail)
         {
             PanelContainer panel = CreateFramedPanel();
-            MarginContainer margin = AddPadding(panel, 14, 12);
+            MarginContainer margin = AddPadding(panel, 14, 10);
 
             VBoxContainer column = new VBoxContainer
             {
                 Alignment = BoxContainer.AlignmentMode.Center
             };
-            column.AddThemeConstantOverride("separation", 3);
+            column.AddThemeConstantOverride("separation", 1);
             margin.AddChild(column);
 
             Label heading = CreateHeading("PONTOS", 18, accent);
             column.AddChild(heading);
 
-            score = CreateHeading("0", 58, accent);
+            score = CreateHeading("0", 54, accent);
             column.AddChild(score);
 
             multiplier = CreateHeading("MULT × 1,0", 17, accent);
             column.AddChild(multiplier);
+
+            detail = CreateHeading("", 12, Muted);
+            detail.CustomMinimumSize = new Vector2(0f, 20f);
+            column.AddChild(detail);
 
             return panel;
         }
@@ -389,7 +481,9 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             button.AddThemeStyleboxOverride("hover", hover);
             button.AddThemeStyleboxOverride("pressed", pressed);
             button.AddThemeColorOverride("font_color", Ivory);
-            button.AddThemeColorOverride("font_hover_color", new Color(0.94f, 0.84f, 0.66f, 1f));
+            button.AddThemeColorOverride(
+                "font_hover_color",
+                new Color(0.94f, 0.84f, 0.66f, 1f));
             button.AddThemeFontSizeOverride("font_size", 15);
         }
 
@@ -464,12 +558,22 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             ScheduleEnemyTurnIfNeeded();
         }
 
-        private BoardState CreateDefaultBoard()
+        private static BoardState CreateDefaultBoard()
+        {
+            return CreateRectangularBoard(3, 3);
+        }
+
+        private static BoardState CreateRectangularBoard(
+            int width,
+            int height)
         {
             BoardDefinition definition =
-                BoardDefinition.CreateRectangular(3, 3);
+                BoardDefinition.CreateRectangular(width, height);
 
-            BoardCoordinate center = new BoardCoordinate(1, 1);
+            BoardCoordinate center = new BoardCoordinate(
+                (width - 1) / 2,
+                (height - 1) / 2);
+
             CellState goldenCenter = new CellState(
                 center,
                 CellMark.None,
@@ -542,7 +646,10 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             }
 
             if (!context.ContainsLegalAction(selected))
-                throw new InvalidOperationException("A IA devolveu uma ação fora de LegalActions.");
+            {
+                throw new InvalidOperationException(
+                    "A IA devolveu uma ação fora de LegalActions.");
+            }
 
             _engine.ExecuteAction(selected);
             AfterAuthoritativeAction();
@@ -552,7 +659,11 @@ namespace TicTacToeRoguelike.Presentation.Encounters
         {
             if (_engine.State.Phase == EncounterPhase.RoundResolved)
             {
-                _combatAnimator.Present(_engine.State.LastRoundResolution);
+                RoundResolution resolution =
+                    _engine.State.LastRoundResolution;
+
+                _combatAnimator.Present(resolution);
+                BeginScoreAnimation(resolution);
                 _engine.AcknowledgeRoundResolution();
             }
 
@@ -575,8 +686,11 @@ namespace TicTacToeRoguelike.Presentation.Encounters
 
         private void OnNextRoundPressed()
         {
-            if (_engine.State.Phase != EncounterPhase.WaitingForNextRound)
+            if (_scoreAnimationActive ||
+                _engine.State.Phase != EncounterPhase.WaitingForNextRound)
+            {
                 return;
+            }
 
             _encounterGeneration++;
             _nextRoundButton.Visible = false;
@@ -618,11 +732,19 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             UpdateScoreDisplay(state);
 
             _nextRoundButton.Visible =
+                !_scoreAnimationActive &&
                 state.Phase == EncounterPhase.WaitingForNextRound;
         }
 
         private void UpdateTurnDisplay(EncounterState state)
         {
+            if (_scoreAnimationActive)
+            {
+                _turnLabel.Text = "CONTANDO PONTOS";
+                _turnLabel.AddThemeColorOverride("font_color", Ivory);
+                return;
+            }
+
             if (state.Phase == EncounterPhase.EncounterEnded)
             {
                 _turnLabel.Text = "CONFRONTO ENCERRADO";
@@ -657,6 +779,9 @@ namespace TicTacToeRoguelike.Presentation.Encounters
 
         private void UpdateScoreDisplay(EncounterState state)
         {
+            if (_scoreAnimationActive)
+                return;
+
             int playerScore = 0;
             int enemyScore = 0;
             decimal playerMultiplier = 1m;
@@ -674,10 +799,178 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                     state.LastRoundResolution.EnemyScore.Breakdown.TotalMultiplier;
             }
 
-            _playerScoreLabel.Text = playerScore.ToString(CultureInfo.InvariantCulture);
-            _enemyScoreLabel.Text = enemyScore.ToString(CultureInfo.InvariantCulture);
-            _playerMultiplierLabel.Text = $"MULT × {FormatMultiplier(playerMultiplier)}";
-            _enemyMultiplierLabel.Text = $"MULT × {FormatMultiplier(enemyMultiplier)}";
+            _playerScoreLabel.Text =
+                playerScore.ToString(CultureInfo.InvariantCulture);
+            _enemyScoreLabel.Text =
+                enemyScore.ToString(CultureInfo.InvariantCulture);
+            _playerMultiplierLabel.Text =
+                $"MULT × {FormatMultiplier(playerMultiplier)}";
+            _enemyMultiplierLabel.Text =
+                $"MULT × {FormatMultiplier(enemyMultiplier)}";
+
+            _playerScoreDetailLabel.Text = "";
+            _enemyScoreDetailLabel.Text = "";
+        }
+
+        private void BeginScoreAnimation(RoundResolution resolution)
+        {
+            _animatedResolution = resolution ??
+                throw new ArgumentNullException(nameof(resolution));
+
+            _scoreAnimationActive = true;
+            _scoreAnimationSide = 0;
+            _scoreAnimationStep = 0;
+            _scoreStepElapsed = -ScoreSideDelay;
+
+            _playerScoreLabel.Text = "0";
+            _enemyScoreLabel.Text = "0";
+            _playerMultiplierLabel.Text = "MULT × 1,0";
+            _enemyMultiplierLabel.Text = "MULT × 1,0";
+            _playerScoreDetailLabel.Text = "CONTANDO...";
+            _enemyScoreDetailLabel.Text = "";
+
+            _nextRoundButton.Visible = false;
+            SetProcess(true);
+        }
+
+        private void AdvanceScoreAnimationSide()
+        {
+            if (_scoreAnimationSide == 0)
+            {
+                _playerScoreDetailLabel.Text = "";
+                _enemyScoreDetailLabel.Text = "CONTANDO...";
+
+                _scoreAnimationSide = 1;
+                _scoreAnimationStep = 0;
+                _scoreStepElapsed = -ScoreSideDelay;
+                return;
+            }
+
+            FinishScoreAnimation();
+        }
+
+        private void FinishScoreAnimation()
+        {
+            if (_animatedResolution != null)
+            {
+                _playerScoreLabel.Text =
+                    _animatedResolution.PlayerScore.Breakdown.FinalScore
+                        .ToString(CultureInfo.InvariantCulture);
+
+                _enemyScoreLabel.Text =
+                    _animatedResolution.EnemyScore.Breakdown.FinalScore
+                        .ToString(CultureInfo.InvariantCulture);
+
+                _playerMultiplierLabel.Text =
+                    $"MULT × {FormatMultiplier(_animatedResolution.PlayerScore.Breakdown.TotalMultiplier)}";
+
+                _enemyMultiplierLabel.Text =
+                    $"MULT × {FormatMultiplier(_animatedResolution.EnemyScore.Breakdown.TotalMultiplier)}";
+            }
+
+            _playerScoreDetailLabel.Text = "";
+            _enemyScoreDetailLabel.Text = "";
+
+            _scoreAnimationActive = false;
+            _animatedResolution = null;
+            SetProcess(false);
+
+            RefreshPresentation();
+        }
+
+        private static double GetScoreStepDuration(int stepCount)
+        {
+            if (stepCount <= 6)
+                return 0.42d;
+
+            if (stepCount <= 12)
+                return 0.28d;
+
+            return 0.16d;
+        }
+
+        private static decimal CalculateVisibleMultiplier(
+            ScoreBreakdown breakdown,
+            int completedStepCount)
+        {
+            decimal additiveFactor = 1m;
+            decimal independentProduct = 1m;
+            decimal victoryProduct = 1m;
+
+            int count = Math.Min(
+                completedStepCount,
+                breakdown.Steps.Count);
+
+            for (int i = 0; i < count; i++)
+            {
+                ScoreStep step = breakdown.Steps[i];
+
+                switch (step.Contribution.Phase)
+                {
+                    case ScorePhase.AdditiveMultiplier:
+                        additiveFactor = step.EffectiveFactor;
+                        break;
+
+                    case ScorePhase.IndependentMultiplier:
+                        independentProduct *= step.EffectiveFactor;
+                        break;
+
+                    case ScorePhase.VictoryMultiplier:
+                        victoryProduct *= step.EffectiveFactor;
+                        break;
+                }
+            }
+
+            return additiveFactor *
+                   independentProduct *
+                   victoryProduct;
+        }
+
+        private static string BuildScoreStepText(ScoreStep step)
+        {
+            ScoreContribution contribution = step.Contribution;
+
+            switch (contribution.Operation)
+            {
+                case ScoreOperation.AddPoints:
+                    return $"{contribution.DisplayText}  {FormatSigned(contribution.Amount)}";
+
+                case ScoreOperation.AddToMultiplier:
+                    return $"{contribution.DisplayText}  → ×{FormatMultiplier(step.EffectiveFactor)}";
+
+                case ScoreOperation.Multiply:
+                    return $"{contribution.DisplayText}  ×{FormatMultiplier(contribution.Amount)}";
+
+                default:
+                    return contribution.DisplayText;
+            }
+        }
+
+        private static string FormatSigned(decimal value)
+        {
+            string number = Math.Abs(value)
+                .ToString("0.#", CultureInfo.InvariantCulture)
+                .Replace('.', ',');
+
+            if (value > 0m)
+                return $"+{number}";
+
+            if (value < 0m)
+                return $"-{number}";
+
+            return "0";
+        }
+
+        private static string FormatAnimatedScore(double value)
+        {
+            double rounded = Math.Round(
+                Math.Max(0d, value),
+                1,
+                MidpointRounding.AwayFromZero);
+
+            return rounded
+                .ToString("0.#", CultureInfo.InvariantCulture)
+                .Replace('.', ',');
         }
 
         private static void UpdateHealth(
