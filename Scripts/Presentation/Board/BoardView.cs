@@ -14,6 +14,13 @@ namespace TicTacToeRoguelike.Presentation.Board
 
         private BoardDefinition _definition;
 
+        public BoardView()
+        {
+            AddThemeConstantOverride("h_separation", 0);
+            AddThemeConstantOverride("v_separation", 0);
+            MouseFilter = MouseFilterEnum.Pass;
+        }
+
         public void RenderBoard(BoardState board, bool inputEnabled)
         {
             if (board == null) throw new ArgumentNullException(nameof(board));
