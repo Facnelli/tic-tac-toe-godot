@@ -64,6 +64,25 @@ Neste marco não existe regra específica de runa dentro do motor. O próximo co
 pode registrar handlers de runas concretas sem editar `EncounterEngine` ou
 `ScoreBreakdown`.
 
+## Marco 10 — primeira runa funcional
+
+A runa piloto usa o ID estável
+`rune.pilot.independent-multiplier` e concede um multiplicador independente
+`×1,20` a cada resolução de placar. Sua definição é carregada do asset
+`Content/Runes/Definitions/PilotIndependentMultiplier.tres`, entra no mesmo
+`RuneInventoryState` de qualquer outra runa e é descoberta pelo
+`PilotIndependentMultiplierRuneHandler`.
+
+O handler produz uma `ScoreContribution` comum, incluindo
+`SourceInstanceId`. Assim, `EncounterEngine` e `ScorePipeline` não possuem
+branches para a runa concreta. A apresentação usa somente a proveniência
+genérica para pulsar a pedra que ativou e o `ScoreStep` já existente para
+animar a alteração do MULT.
+
+O mesmo handler funciona para Player e Enemy. Duas cópias da runa criam duas
+contribuições independentes (1,20 × 1,20 = 1,44), mantendo ordenação estável por
+`RuneInstanceId`.
+
 ## Verificação
 
 A suíte EditMode pura do projeto Unity foi migrada para NUnit/.NET e recebeu
