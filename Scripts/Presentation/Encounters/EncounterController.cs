@@ -35,6 +35,10 @@ namespace TicTacToeRoguelike.Presentation.Encounters
 
         private const double ScoreSideDelay = 0.22;
         private const double ScoreSequenceGap = 0.10;
+        private const double EnemyTurnVisualDelay = 0.36;
+
+        private readonly SequenceEvaluator _sequenceEvaluator =
+            new SequenceEvaluator();
 
         private EncounterEngine _engine;
         private ActionCatalog _catalog;
@@ -54,6 +58,10 @@ namespace TicTacToeRoguelike.Presentation.Encounters
         private Label _enemyScoreDetailLabel;
         private Label _playerFloatingScoreLabel;
         private Label _enemyFloatingScoreLabel;
+        private Label _reactionConditionLabel;
+        private Label _reactionPlayerCountLabel;
+        private Label _reactionEnemyCountLabel;
+        private Label _reactionNeedLabel;
 
         private ProgressBar _playerHpBar;
         private ProgressBar _enemyHpBar;
@@ -69,6 +77,11 @@ namespace TicTacToeRoguelike.Presentation.Encounters
         private int _configuredVictoryLength = 3;
         private int _encounterGeneration;
         private bool _enemyTurnScheduled;
+
+        private HashSet<string> _lastPlayerWinningSequenceIds =
+            new HashSet<string>();
+        private HashSet<string> _lastEnemyWinningSequenceIds =
+            new HashSet<string>();
 
         private bool _scoreAnimationActive;
         private bool _scoreStepPrepared;
@@ -324,6 +337,11 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             Place(opponentRunes, 0.055f, 0.050f, 0.340f, 0.205f);
             layout.AddChild(opponentRunes);
 
+            PanelContainer reactionPanel =
+                CreateReactionPanel();
+            Place(reactionPanel, 0.055f, 0.255f, 0.315f, 0.485f);
+            layout.AddChild(reactionPanel);
+
             PanelContainer roundPanel = CreateRoundPanel();
             Place(roundPanel, 0.410f, 0.035f, 0.590f, 0.165f);
             layout.AddChild(roundPanel);
@@ -412,6 +430,61 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                 MouseFilter = MouseFilterEnum.Ignore
             };
             column.AddChild(emptyRuneArea);
+
+            return panel;
+        }
+
+        private PanelContainer CreateReactionPanel()
+        {
+            PanelContainer panel = CreateFramedPanel();
+            MarginContainer margin = AddPadding(panel, 16, 12);
+
+            VBoxContainer column = new VBoxContainer
+            {
+                Alignment = BoxContainer.AlignmentMode.Center
+            };
+            column.AddThemeConstantOverride("separation", 5);
+            margin.AddChild(column);
+
+            Label heading =
+                CreateHeading("CONDIÇÃO DE VITÓRIA", 17, Ivory);
+            column.AddChild(heading);
+
+            _reactionConditionLabel =
+                CreateHeading("3 EM LINHA", 14, Muted);
+            column.AddChild(_reactionConditionLabel);
+            column.AddChild(CreateDivider());
+
+            HBoxContainer counts = new HBoxContainer
+            {
+                Alignment = BoxContainer.AlignmentMode.Center
+            };
+            counts.AddThemeConstantOverride("separation", 18);
+            column.AddChild(counts);
+
+            _reactionPlayerCountLabel =
+                CreateHeading("VOCÊ  0", 22, Cyan);
+            _reactionPlayerCountLabel.SizeFlagsHorizontal =
+                SizeFlags.ExpandFill;
+            counts.AddChild(_reactionPlayerCountLabel);
+
+            Label versus =
+                CreateHeading("×", 18, Muted);
+            counts.AddChild(versus);
+
+            _reactionEnemyCountLabel =
+                CreateHeading("0  OPONENTE", 22, Rose);
+            _reactionEnemyCountLabel.SizeFlagsHorizontal =
+                SizeFlags.ExpandFill;
+            counts.AddChild(_reactionEnemyCountLabel);
+
+            _reactionNeedLabel =
+                CreateHeading("SEM REAÇÃO", 13, Muted);
+            _reactionNeedLabel.AutowrapMode =
+                TextServer.AutowrapMode.WordSmart;
+            _reactionNeedLabel.CustomMinimumSize =
+                new Vector2(0f, 34f);
+            column.AddChild(_reactionNeedLabel);
 
             return panel;
         }
@@ -811,11 +884,14 @@ namespace TicTacToeRoguelike.Presentation.Encounters
         private void StartFirstRound()
         {
             _encounterGeneration++;
+            ResetReactionVisualTracking();
+
             _engine.StartEncounter(
                 CreateConfiguredBoard(),
                 EncounterSide.Player);
 
             RefreshPresentation();
+            RefreshReactionVisuals(false);
             ScheduleEnemyTurnIfNeeded();
         }
 
@@ -925,18 +1001,30 @@ namespace TicTacToeRoguelike.Presentation.Encounters
 
         private void AfterAuthoritativeAction()
         {
+            RoundResolution resolvedRound = null;
+
             if (_engine.State.Phase ==
                 EncounterPhase.RoundResolved)
             {
-                RoundResolution resolution =
+                resolvedRound =
                     _engine.State.LastRoundResolution;
 
-                _combatAnimator.Present(resolution);
-                BeginScoreAnimation(resolution);
+                _combatAnimator.Present(resolvedRound);
                 _engine.AcknowledgeRoundResolution();
             }
 
+            // Atualiza imediatamente o tabuleiro. A IA só começa depois de um
+            // pequeno intervalo, garantindo ao Godot ao menos alguns frames para
+            // desenhar o símbolo e a mudança da reação.
             RefreshPresentation();
+            RefreshReactionVisuals(true);
+
+            if (resolvedRound != null)
+            {
+                BeginScoreAnimation(resolvedRound);
+                UpdateTurnDisplay(_engine.State);
+            }
+
             ScheduleEnemyTurnIfNeeded();
         }
 
@@ -950,8 +1038,30 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                 ScoreActor.Enemy)
             {
                 _enemyTurnScheduled = true;
-                Callable.From(RunEnemyTurn).CallDeferred();
+                int scheduledGeneration =
+                    _encounterGeneration;
+
+                RunEnemyTurnAfterVisualDelay(
+                    scheduledGeneration);
             }
+        }
+
+        private async void RunEnemyTurnAfterVisualDelay(
+            int scheduledGeneration)
+        {
+            await ToSignal(
+                GetTree().CreateTimer(
+                    EnemyTurnVisualDelay),
+                SceneTreeTimer.SignalName.Timeout);
+
+            if (scheduledGeneration !=
+                _encounterGeneration)
+            {
+                _enemyTurnScheduled = false;
+                return;
+            }
+
+            RunEnemyTurn();
         }
 
         private void OnNextRoundPressed()
@@ -966,11 +1076,15 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             _encounterGeneration++;
             _nextRoundButton.Visible = false;
 
+            _boardView.ClearReactionHighlights();
+            ResetReactionVisualTracking();
+
             _engine.StartNextRound(
                 CreateConfiguredBoard(),
                 EncounterSide.Player);
 
             RefreshPresentation();
+            RefreshReactionVisuals(false);
             ScheduleEnemyTurnIfNeeded();
         }
 
@@ -1006,6 +1120,7 @@ namespace TicTacToeRoguelike.Presentation.Encounters
 
             UpdateTurnDisplay(state);
             UpdateScoreDisplay(state);
+            UpdateReactionDisplay(state);
 
             _nextRoundButton.Visible =
                 !_scoreAnimationActive &&
@@ -1070,6 +1185,102 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             _turnLabel.AddThemeColorOverride(
                 "font_color",
                 Muted);
+        }
+
+        private void UpdateReactionDisplay(
+            EncounterState state)
+        {
+            if (_reactionConditionLabel == null)
+                return;
+
+            _reactionConditionLabel.Text =
+                $"{_configuredVictoryLength} EM LINHA";
+
+            ReactionState reaction =
+                state.ReactionState;
+
+            if (reaction == null)
+            {
+                _reactionPlayerCountLabel.Text =
+                    "VOCÊ  0";
+                _reactionEnemyCountLabel.Text =
+                    "0  OPONENTE";
+                _reactionNeedLabel.Text =
+                    "SEM REAÇÃO";
+                _reactionNeedLabel.AddThemeColorOverride(
+                    "font_color",
+                    Muted);
+                return;
+            }
+
+            int player =
+                reaction.PlayerSequenceCount;
+            int enemy =
+                reaction.EnemySequenceCount;
+
+            _reactionPlayerCountLabel.Text =
+                $"VOCÊ  {player}";
+            _reactionEnemyCountLabel.Text =
+                $"{enemy}  OPONENTE";
+
+            if (player == enemy)
+            {
+                _reactionNeedLabel.Text =
+                    player == 0
+                        ? "SEM REAÇÃO"
+                        : "EMPATE — REAÇÃO ENCERRADA";
+                _reactionNeedLabel.AddThemeColorOverride(
+                    "font_color",
+                    Muted);
+                return;
+            }
+
+            int difference =
+                Math.Abs(player - enemy);
+
+            bool roundAlreadyEnded =
+                state.Phase ==
+                    EncounterPhase.WaitingForNextRound ||
+                state.Phase ==
+                    EncounterPhase.EncounterEnded ||
+                _scoreAnimationActive;
+
+            if (roundAlreadyEnded)
+            {
+                bool playerLeads = player > enemy;
+                _reactionNeedLabel.Text =
+                    playerLeads
+                        ? $"VANTAGEM FINAL: VOCÊ +{difference}"
+                        : $"VANTAGEM FINAL: OPONENTE +{difference}";
+                _reactionNeedLabel.AddThemeColorOverride(
+                    "font_color",
+                    playerLeads ? Cyan : Rose);
+                return;
+            }
+
+            if (player < enemy)
+            {
+                _reactionNeedLabel.Text =
+                    $"VOCÊ PRECISA DE +{difference} " +
+                    (difference == 1
+                        ? "SEQUÊNCIA PARA EMPATAR"
+                        : "SEQUÊNCIAS PARA EMPATAR");
+
+                _reactionNeedLabel.AddThemeColorOverride(
+                    "font_color",
+                    Cyan);
+                return;
+            }
+
+            _reactionNeedLabel.Text =
+                $"OPONENTE PRECISA DE +{difference} " +
+                (difference == 1
+                    ? "SEQUÊNCIA PARA EMPATAR"
+                    : "SEQUÊNCIAS PARA EMPATAR");
+
+            _reactionNeedLabel.AddThemeColorOverride(
+                "font_color",
+                Rose);
         }
 
         private void UpdateScoreDisplay(
@@ -1274,6 +1485,8 @@ namespace TicTacToeRoguelike.Presentation.Encounters
         private void FinishScoreAnimation()
         {
             _boardView.HideScoringSequence();
+            _boardView.ClearReactionHighlights();
+            ResetReactionVisualTracking();
 
             if (_animatedResolution != null)
             {
@@ -1309,6 +1522,75 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             SetProcess(false);
 
             RefreshPresentation();
+        }
+
+        private void RefreshReactionVisuals(
+            bool animateIfChanged)
+        {
+            if (_engine?.State?.Board == null ||
+                _boardView == null)
+            {
+                return;
+            }
+
+            IReadOnlyList<SequenceMatch> playerSequences =
+                _sequenceEvaluator.EvaluateWinningSequences(
+                    _engine.State.Board,
+                    CellMark.X,
+                    _configuredVictoryLength);
+
+            IReadOnlyList<SequenceMatch> enemySequences =
+                _sequenceEvaluator.EvaluateWinningSequences(
+                    _engine.State.Board,
+                    CellMark.O,
+                    _configuredVictoryLength);
+
+            HashSet<string> playerIds =
+                BuildSequenceIdSet(playerSequences);
+            HashSet<string> enemyIds =
+                BuildSequenceIdSet(enemySequences);
+
+            bool changed =
+                !_lastPlayerWinningSequenceIds.SetEquals(
+                    playerIds) ||
+                !_lastEnemyWinningSequenceIds.SetEquals(
+                    enemyIds);
+
+            _boardView.ShowReactionTransition(
+                playerSequences,
+                enemySequences,
+                animateIfChanged && changed);
+
+            _lastPlayerWinningSequenceIds =
+                playerIds;
+            _lastEnemyWinningSequenceIds =
+                enemyIds;
+        }
+
+        private static HashSet<string> BuildSequenceIdSet(
+            IReadOnlyList<SequenceMatch> sequences)
+        {
+            HashSet<string> ids =
+                new HashSet<string>();
+
+            for (int i = 0;
+                 i < sequences.Count;
+                 i++)
+            {
+                ids.Add(
+                    ScorePipeline.GetSequenceSourceId(
+                        sequences[i]));
+            }
+
+            return ids;
+        }
+
+        private void ResetReactionVisualTracking()
+        {
+            _lastPlayerWinningSequenceIds =
+                new HashSet<string>();
+            _lastEnemyWinningSequenceIds =
+                new HashSet<string>();
         }
 
         private static double GetScoreStepDuration(
