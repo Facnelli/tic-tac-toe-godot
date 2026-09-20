@@ -22,7 +22,7 @@ namespace TicTacToeRoguelike.Presentation.Board
         private const float MaximumBoardSpan = 444f;
         private const float MinimumCellSize = 22f;
         private const float MaximumCellSize = 148f;
-        private const float GridDrawDuration = 0.72f;
+        private const float GridDrawDuration = 2.16f;
         private const float SequenceDrawDuration = 0.18f;
         private const double ReactionFlashDuration = 0.30d;
 
@@ -565,38 +565,115 @@ namespace TicTacToeRoguelike.Presentation.Board
             Vector2 end =
                 from.Lerp(to, progress);
 
+            Vector2 direction = end - from;
+            float length = direction.Length();
+
+            if (length <= 0.01f)
+                return;
+
+            Vector2 normalized = direction / length;
+            Vector2 normal =
+                new Vector2(-normalized.Y, normalized.X);
+
             Color dust = new Color(
                 color.R,
                 color.G,
                 color.B,
-                MathF.Min(color.A, 0.24f));
+                MathF.Min(color.A, 0.18f));
 
+            // Base fosca e irregular, como pó de giz depositado na pedra.
             DrawLine(
                 from,
                 end,
                 dust,
-                width + 3.2f,
+                width + 4.5f,
                 true);
 
             DrawLine(
-                from + new Vector2(0.7f, -0.5f),
-                end + new Vector2(0.7f, -0.5f),
-                color,
-                width,
-                true);
-
-            DrawLine(
-                from + new Vector2(-0.8f, 0.6f),
-                end + new Vector2(-0.8f, 0.6f),
+                from + normal * 0.65f,
+                end + normal * 0.65f,
                 new Color(
                     color.R,
                     color.G,
                     color.B,
-                    MathF.Min(color.A, 0.34f)),
-                MathF.Max(
-                    0.9f,
-                    width * 0.38f),
+                    MathF.Min(color.A, 0.82f)),
+                width,
                 true);
+
+            DrawLine(
+                from - normal * 0.95f,
+                end - normal * 0.95f,
+                new Color(
+                    color.R,
+                    color.G,
+                    color.B,
+                    MathF.Min(color.A, 0.28f)),
+                MathF.Max(0.8f, width * 0.32f),
+                true);
+
+            DrawChalkGrain(
+                from,
+                normalized,
+                normal,
+                length,
+                color,
+                width);
+        }
+
+        private void DrawChalkGrain(
+            Vector2 from,
+            Vector2 direction,
+            Vector2 normal,
+            float length,
+            Color color,
+            float width)
+        {
+            int grainCount =
+                Math.Max(6, (int)(length / 10f));
+
+            for (int i = 0;
+                 i < grainCount;
+                 i++)
+            {
+                float t =
+                    (i + 0.35f) / grainCount;
+
+                float phase =
+                    (i * 12.9898f) +
+                    (from.X * 0.071f) +
+                    (from.Y * 0.113f);
+
+                float jitter =
+                    MathF.Sin(phase) *
+                    MathF.Max(0.7f, width * 0.72f);
+
+                float along =
+                    MathF.Sin(phase * 0.47f) * 1.8f;
+
+                Vector2 point =
+                    from +
+                    direction * (length * t + along) +
+                    normal * jitter;
+
+                float radius =
+                    0.35f +
+                    MathF.Abs(MathF.Sin(phase * 1.73f)) *
+                    MathF.Max(0.35f, width * 0.18f);
+
+                float alpha =
+                    0.10f +
+                    MathF.Abs(MathF.Sin(phase * 0.83f)) *
+                    0.22f;
+
+                DrawCircle(
+                    point,
+                    radius,
+                    new Color(
+                        color.R,
+                        color.G,
+                        color.B,
+                        MathF.Min(color.A, alpha)));
+            }
         }
 
         private void OnCellActivated(
