@@ -76,6 +76,16 @@ namespace TicTacToeRoguelike.Content.Runes
                 "ᛟ",
                 RuneAttributeId.Intangible);
 
+            Add(
+                inventory,
+                RuneDefinitionIds
+                    .PilotIndependentMultiplier
+                    .Value,
+                "Runa do Eco",
+                "Passiva: aplica MULT ×1,20 ao seu placar em cada resolução.",
+                RuneRarity.Rare,
+                "ᛞ");
+
             return inventory;
         }
 
@@ -103,6 +113,16 @@ namespace TicTacToeRoguelike.Content.Runes
                 RuneRarity.Rare,
                 "ᚾ",
                 RuneAttributeId.Broken);
+
+            Add(
+                inventory,
+                RuneDefinitionIds
+                    .PilotIndependentMultiplier
+                    .Value,
+                "Runa do Eco",
+                "Passiva: aplica MULT ×1,20 ao seu placar em cada resolução.",
+                RuneRarity.Rare,
+                "ᛞ");
 
             return inventory;
         }
