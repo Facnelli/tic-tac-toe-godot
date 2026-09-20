@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using Godot;
 using TicTacToeRoguelike.Application.AI;
+using TicTacToeRoguelike.Content.Runes;
 using TicTacToeRoguelike.Application.Actions;
 using TicTacToeRoguelike.Application.Encounters;
 using TicTacToeRoguelike.Domain.Actions;
@@ -10,11 +11,13 @@ using TicTacToeRoguelike.Domain.Boards;
 using TicTacToeRoguelike.Domain.Combat;
 using TicTacToeRoguelike.Domain.Moves;
 using TicTacToeRoguelike.Domain.Reactions;
+using TicTacToeRoguelike.Domain.Runes;
 using TicTacToeRoguelike.Domain.Scoring;
 using TicTacToeRoguelike.Domain.Sequences;
 using TicTacToeRoguelike.Presentation.Arena;
 using TicTacToeRoguelike.Presentation.Board;
 using TicTacToeRoguelike.Presentation.Combat;
+using TicTacToeRoguelike.Presentation.Runes;
 
 namespace TicTacToeRoguelike.Presentation.Encounters
 {
@@ -599,8 +602,8 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                 (int)Math.Round(_victoryLengthSpin.Value);
 
             ClearCurrentScreen();
-            BuildInterface();
             ComposeEncounter();
+            BuildInterface();
             StartFirstRound();
         }
 
@@ -627,7 +630,9 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             AddChild(layout);
 
             PanelContainer opponentRunes =
-                CreateRunePanel("RUNAS DO OPONENTE");
+                CreateRunePanel(
+                    "RUNAS DO OPONENTE",
+                    _engine.State.EnemyRunes);
             Place(opponentRunes, 0.055f, 0.050f, 0.340f, 0.205f);
             layout.AddChild(opponentRunes);
 
@@ -700,7 +705,9 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             layout.AddChild(_enemyFloatingScoreLabel);
 
             PanelContainer playerRunes =
-                CreateRunePanel("RUNAS DO JOGADOR");
+                CreateRunePanel(
+                    "RUNAS DO JOGADOR",
+                    _engine.State.PlayerRunes);
             Place(playerRunes, 0.055f, 0.745f, 0.430f, 0.930f);
             layout.AddChild(playerRunes);
 
@@ -727,7 +734,9 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             AddChild(_combatAnimator);
         }
 
-        private PanelContainer CreateRunePanel(string title)
+        private PanelContainer CreateRunePanel(
+            string title,
+            RuneInventoryState inventory)
         {
             PanelContainer panel = CreateFramedPanel();
             MarginContainer margin = AddPadding(panel, 18, 12);
@@ -740,12 +749,16 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             column.AddChild(heading);
             column.AddChild(CreateDivider());
 
-            Control emptyRuneArea = new Control
-            {
-                SizeFlagsVertical = SizeFlags.ExpandFill,
-                MouseFilter = MouseFilterEnum.Ignore
-            };
-            column.AddChild(emptyRuneArea);
+            RuneInventoryView inventoryView =
+                new RuneInventoryView(inventory)
+                {
+                    SizeFlagsHorizontal =
+                        SizeFlags.ExpandFill,
+                    SizeFlagsVertical =
+                        SizeFlags.ExpandFill
+                };
+
+            column.AddChild(inventoryView);
 
             return panel;
         }
@@ -1189,10 +1202,18 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                         _configuredVictoryLength,
                     victoryMultiplier: 1.5m);
 
+            RuneInventoryState playerRunes =
+                StarterRuneCatalog.CreatePlayerInventory();
+
+            RuneInventoryState enemyRunes =
+                StarterRuneCatalog.CreateEnemyInventory();
+
             _engine = new EncounterEngine(
                 player,
                 enemy,
                 rules,
+                playerRunes,
+                enemyRunes,
                 executor,
                 availability,
                 new ReactionStateFactory(),
