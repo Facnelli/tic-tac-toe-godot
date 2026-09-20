@@ -3,6 +3,7 @@ using TicTacToeRoguelike.Application.Actions;
 using TicTacToeRoguelike.Domain.Actions;
 using TicTacToeRoguelike.Domain.Boards;
 using TicTacToeRoguelike.Domain.Combat;
+using TicTacToeRoguelike.Domain.Effects;
 using TicTacToeRoguelike.Domain.Reactions;
 using TicTacToeRoguelike.Domain.Runes;
 using TicTacToeRoguelike.Domain.Scoring;
@@ -130,6 +131,7 @@ namespace TicTacToeRoguelike.Application.Encounters
         private readonly ReactionStateFactory _reactionStateFactory;
         private readonly ReactionRule _reactionRule;
         private readonly ScorePipeline _scorePipeline;
+        private readonly EffectEngine _effectEngine;
         private readonly ClashResolver _clashResolver;
         private readonly DamageResolver _damageResolver;
         private readonly IEncounterTurnScheduler _turnScheduler;
@@ -164,6 +166,24 @@ namespace TicTacToeRoguelike.Application.Encounters
                 rules,
                 playerRunes,
                 enemyRunes,
+                new EffectEngine())
+        {
+        }
+
+        public EncounterEngine(
+            CombatantState playerState,
+            CombatantState enemyState,
+            EncounterRules rules,
+            RuneInventoryState playerRunes,
+            RuneInventoryState enemyRunes,
+            EffectEngine effectEngine)
+            : this(
+                playerState,
+                enemyState,
+                rules,
+                playerRunes,
+                enemyRunes,
+                effectEngine,
                 new ActionExecutor(),
                 new ActionAvailabilityService(),
                 new ReactionStateFactory(),
@@ -196,6 +216,7 @@ namespace TicTacToeRoguelike.Application.Encounters
                 rules,
                 new RuneInventoryState(ScoreActor.Player),
                 new RuneInventoryState(ScoreActor.Enemy),
+                new EffectEngine(),
                 actionExecutor,
                 actionAvailabilityService,
                 reactionStateFactory,
@@ -216,6 +237,42 @@ namespace TicTacToeRoguelike.Application.Encounters
             EncounterRules rules,
             RuneInventoryState playerRunes,
             RuneInventoryState enemyRunes,
+            ActionExecutor actionExecutor,
+            ActionAvailabilityService actionAvailabilityService,
+            ReactionStateFactory reactionStateFactory,
+            ReactionRule reactionRule,
+            ScorePipeline scorePipeline,
+            ClashResolver clashResolver,
+            DamageResolver damageResolver,
+            IEncounterTurnScheduler turnScheduler)
+            : this(
+                playerState,
+                enemyState,
+                rules,
+                playerRunes,
+                enemyRunes,
+                new EffectEngine(),
+                actionExecutor,
+                actionAvailabilityService,
+                reactionStateFactory,
+                reactionRule,
+                scorePipeline,
+                clashResolver,
+                damageResolver,
+                turnScheduler)
+        {
+        }
+
+        /// <summary>
+        /// Composição explícita com motor de efeitos determinístico.
+        /// </summary>
+        public EncounterEngine(
+            CombatantState playerState,
+            CombatantState enemyState,
+            EncounterRules rules,
+            RuneInventoryState playerRunes,
+            RuneInventoryState enemyRunes,
+            EffectEngine effectEngine,
             ActionExecutor actionExecutor,
             ActionAvailabilityService actionAvailabilityService,
             ReactionStateFactory reactionStateFactory,
@@ -249,6 +306,9 @@ namespace TicTacToeRoguelike.Application.Encounters
 
             _scorePipeline = scorePipeline ??
                 throw new ArgumentNullException(nameof(scorePipeline));
+
+            _effectEngine = effectEngine ??
+                throw new ArgumentNullException(nameof(effectEngine));
 
             _clashResolver = clashResolver ??
                 throw new ArgumentNullException(nameof(clashResolver));
@@ -542,19 +602,37 @@ namespace TicTacToeRoguelike.Application.Encounters
             CombatantSnapshot enemyBefore =
                 CombatantSnapshot.Capture(State.EnemyState);
 
+            bool playerIsWinner =
+                finalDecision.VictoryMultiplierRecipient ==
+                ScoreActor.Player;
+
+            bool enemyIsWinner =
+                finalDecision.VictoryMultiplierRecipient ==
+                ScoreActor.Enemy;
+
+            EffectExecutionReport playerEffects =
+                ResolveScoreEffects(
+                    ScoreActor.Player,
+                    playerIsWinner);
+
+            EffectExecutionReport enemyEffects =
+                ResolveScoreEffects(
+                    ScoreActor.Enemy,
+                    enemyIsWinner);
+
             ScorePipelineResult playerScore =
                 ResolveScore(
                     ScoreActor.Player,
                     CellMark.X,
-                    finalDecision.VictoryMultiplierRecipient ==
-                        ScoreActor.Player);
+                    playerIsWinner,
+                    playerEffects.ScoreContributions);
 
             ScorePipelineResult enemyScore =
                 ResolveScore(
                     ScoreActor.Enemy,
                     CellMark.O,
-                    finalDecision.VictoryMultiplierRecipient ==
-                        ScoreActor.Enemy);
+                    enemyIsWinner,
+                    enemyEffects.ScoreContributions);
 
             ClashReport clash = _clashResolver.Resolve(
                 playerScore,
@@ -585,7 +663,9 @@ namespace TicTacToeRoguelike.Application.Encounters
                     playerBefore,
                     playerAfter,
                     enemyBefore,
-                    enemyAfter);
+                    enemyAfter,
+                    playerEffects,
+                    enemyEffects);
 
             EncounterResult encounterResult =
                 roundResolution.CausedEncounterEnd
@@ -598,10 +678,38 @@ namespace TicTacToeRoguelike.Application.Encounters
                 encounterResult);
         }
 
+        private EffectExecutionReport ResolveScoreEffects(
+            ScoreActor participant,
+            bool isWinner)
+        {
+            RuneInventoryState ownRunes =
+                participant == ScoreActor.Player
+                    ? State.PlayerRunes
+                    : State.EnemyRunes;
+
+            RuneInventoryState opponentRunes =
+                participant == ScoreActor.Player
+                    ? State.EnemyRunes
+                    : State.PlayerRunes;
+
+            EffectContext context =
+                new EffectContext(
+                    EffectEventKind.ScoreRequested,
+                    participant,
+                    State.Board,
+                    ownRunes.Runes,
+                    opponentRunes.Runes,
+                    State.RoundNumber,
+                    isWinner);
+
+            return _effectEngine.Resolve(context);
+        }
+
         private ScorePipelineResult ResolveScore(
             ScoreActor participant,
             CellMark mark,
-            bool receivesVictoryMultiplier)
+            bool receivesVictoryMultiplier,
+            IEnumerable<ScoreContribution> additionalContributions)
         {
             ScorePipelineRequest request =
                 new ScorePipelineRequest(
@@ -611,7 +719,8 @@ namespace TicTacToeRoguelike.Application.Encounters
                     State.Rules.MinimumScoringSequenceLength,
                     State.Rules.MaximumScoringSequenceLength,
                     receivesVictoryMultiplier,
-                    State.Rules.VictoryMultiplier);
+                    State.Rules.VictoryMultiplier,
+                    additionalContributions);
 
             return _scorePipeline.Resolve(request);
         }
