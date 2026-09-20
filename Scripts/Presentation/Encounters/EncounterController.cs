@@ -1215,7 +1215,7 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                 rules,
                 playerRunes,
                 enemyRunes,
-                new EffectEngine(),
+                DefaultEffectEngineFactory.Create(),
                 executor,
                 availability,
                 new ReactionStateFactory(),
