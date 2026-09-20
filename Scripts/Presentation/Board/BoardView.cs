@@ -24,6 +24,7 @@ namespace TicTacToeRoguelike.Presentation.Board
         private const float MaximumCellSize = 148f;
         private const float GridDrawDuration = 2.16f;
         private const float SequenceDrawDuration = 0.18f;
+        private const float RoundEraseDuration = 1.25f;
         private const double ReactionFlashDuration = 0.30d;
 
         public event Action<BoardCoordinate> CellActivated;
@@ -41,6 +42,9 @@ namespace TicTacToeRoguelike.Presentation.Board
         private bool _sequenceAnimating;
 
         private Tween _reactionTween;
+        private float _eraseProgress;
+        private bool _eraseAnimating;
+        private Action _eraseCompleted;
 
         public BoardView()
         {
@@ -85,11 +89,34 @@ namespace TicTacToeRoguelike.Presentation.Board
                     needsProcess = true;
             }
 
+            if (_eraseAnimating)
+            {
+                _eraseProgress = MathF.Min(
+                    1f,
+                    _eraseProgress +
+                    (float)(delta / RoundEraseDuration));
+
+                UpdateCellEraseAmounts();
+                needsProcess = _eraseProgress < 1f;
+
+                if (_eraseProgress >= 1f)
+                {
+                    _eraseAnimating = false;
+
+                    Action completed =
+                        _eraseCompleted;
+                    _eraseCompleted = null;
+
+                    completed?.Invoke();
+                }
+            }
+
             QueueRedraw();
 
             if (!needsProcess &&
                 !_gridAnimating &&
-                !_sequenceAnimating)
+                !_sequenceAnimating &&
+                !_eraseAnimating)
             {
                 SetProcess(false);
             }
@@ -104,6 +131,9 @@ namespace TicTacToeRoguelike.Presentation.Board
 
             if (_scoringSequence != null)
                 DrawScoringSequence();
+
+            if (_eraseProgress > 0f)
+                DrawBoardEraseMask();
         }
 
         public void RenderBoard(
@@ -152,6 +182,31 @@ namespace TicTacToeRoguelike.Presentation.Board
 
             if (!_gridAnimating)
                 SetProcess(false);
+        }
+
+        public void PlayRoundErase(
+            Action completed)
+        {
+            _reactionTween?.Kill();
+            _reactionTween = null;
+
+            HideScoringSequence();
+            ClearReactionHighlights();
+
+            _eraseProgress = 0f;
+            _eraseAnimating = true;
+            _eraseCompleted = completed;
+
+            foreach (BoardCellView cell
+                     in _cells.Values)
+            {
+                cell.Disabled = true;
+                cell.ResetErase();
+            }
+
+            UpdateCellEraseAmounts();
+            SetProcess(true);
+            QueueRedraw();
         }
 
         /// <summary>
@@ -308,6 +363,156 @@ namespace TicTacToeRoguelike.Presentation.Board
             }
 
             return cells;
+        }
+
+        private void UpdateCellEraseAmounts()
+        {
+            if (_definition == null)
+                return;
+
+            float boardWidth =
+                _definition.Width * _cellSize;
+
+            float wipeX =
+                _eraseProgress *
+                (boardWidth + _cellSize * 0.32f);
+
+            foreach (KeyValuePair<BoardCoordinate, BoardCellView> pair
+                     in _cells)
+            {
+                BoardCoordinate coordinate =
+                    pair.Key;
+
+                float rowPhase =
+                    (coordinate.Y * 2.41f) +
+                    (coordinate.X * 0.37f);
+
+                float jitter =
+                    MathF.Sin(rowPhase) *
+                    _cellSize * 0.16f;
+
+                float local =
+                    (wipeX +
+                     jitter -
+                     coordinate.X * _cellSize) /
+                    _cellSize;
+
+                pair.Value.SetEraseAmount(
+                    Mathf.Clamp(local, 0f, 1f));
+            }
+        }
+
+        private void DrawBoardEraseMask()
+        {
+            if (_definition == null)
+                return;
+
+            float boardWidth =
+                _definition.Width * _cellSize;
+            float boardHeight =
+                _definition.Height * _cellSize;
+
+            const int bands = 14;
+            float bandHeight =
+                boardHeight / bands;
+
+            float baseEdge =
+                _eraseProgress *
+                (boardWidth + _cellSize * 0.32f);
+
+            Color erased =
+                new Color(
+                    0.016f,
+                    0.019f,
+                    0.022f,
+                    0.985f);
+
+            for (int band = 0;
+                 band < bands;
+                 band++)
+            {
+                float phase =
+                    band * 1.87f;
+
+                float edge =
+                    baseEdge +
+                    MathF.Sin(phase) *
+                    _cellSize * 0.14f +
+                    MathF.Sin(phase * 0.43f) *
+                    _cellSize * 0.06f;
+
+                edge =
+                    Mathf.Clamp(
+                        edge,
+                        0f,
+                        boardWidth);
+
+                float y =
+                    band * bandHeight;
+
+                DrawRect(
+                    new Rect2(
+                        new Vector2(0f, y),
+                        new Vector2(
+                            edge,
+                            bandHeight + 2f)),
+                    erased,
+                    true);
+
+                if (edge > 0f &&
+                    edge < boardWidth)
+                {
+                    float residueWidth =
+                        MathF.Max(
+                            4f,
+                            _cellSize * 0.055f);
+
+                    DrawLine(
+                        new Vector2(
+                            edge - residueWidth,
+                            y),
+                        new Vector2(
+                            edge,
+                            y + bandHeight),
+                        new Color(
+                            0.72f,
+                            0.69f,
+                            0.61f,
+                            0.12f),
+                        residueWidth,
+                        true);
+                }
+            }
+
+            if (_eraseProgress > 0.02f &&
+                _eraseProgress < 0.98f)
+            {
+                float eraserX =
+                    Mathf.Clamp(
+                        baseEdge,
+                        18f,
+                        boardWidth - 18f);
+
+                float eraserWidth =
+                    MathF.Max(
+                        18f,
+                        _cellSize * 0.16f);
+
+                DrawRect(
+                    new Rect2(
+                        new Vector2(
+                            eraserX - eraserWidth * 0.72f,
+                            boardHeight * 0.08f),
+                        new Vector2(
+                            eraserWidth,
+                            boardHeight * 0.84f)),
+                    new Color(
+                        0.24f,
+                        0.22f,
+                        0.18f,
+                        0.22f),
+                    true);
+            }
         }
 
         private void DrawBoardGrid()
@@ -477,6 +682,9 @@ namespace TicTacToeRoguelike.Presentation.Board
                     nameof(definition));
 
             _scoringSequence = null;
+            _eraseAnimating = false;
+            _eraseProgress = 0f;
+            _eraseCompleted = null;
 
             Columns = definition.Width;
             _cellSize = CalculateCellSize(definition);

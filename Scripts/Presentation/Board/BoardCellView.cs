@@ -24,6 +24,8 @@ namespace TicTacToeRoguelike.Presentation.Board
         private bool _animateO;
         private bool _playerVictoryGlow;
         private bool _enemyVictoryGlow;
+        private bool _isGolden;
+        private float _eraseAmount;
         private float _cellSize = 148f;
 
         public event Action<BoardCoordinate> Activated;
@@ -95,13 +97,19 @@ namespace TicTacToeRoguelike.Presentation.Board
 
         public override void _Draw()
         {
+            if (_isGolden)
+                DrawGoldenBackdrop();
+
             DrawVictoryGlow();
 
             bool hasX = (_marks & CellMark.X) == CellMark.X;
             bool hasO = (_marks & CellMark.O) == CellMark.O;
 
             if (!hasX && !hasO)
+            {
+                DrawEraseMask();
                 return;
+            }
 
             Vector2 center = Size * 0.5f;
             float radius = MathF.Min(Size.X, Size.Y) * 0.285f;
@@ -113,6 +121,8 @@ namespace TicTacToeRoguelike.Presentation.Board
 
             if (hasO)
                 DrawChalkO(center, radius, width, Rose, _oProgress);
+
+            DrawEraseMask();
         }
 
         public void Configure(
@@ -172,8 +182,10 @@ namespace TicTacToeRoguelike.Presentation.Board
             }
 
             Disabled = !inputEnabled;
+            _isGolden =
+                cell.HasModifier(CellModifierId.Golden);
 
-            if (cell.HasModifier(CellModifierId.Golden))
+            if (_isGolden)
             {
                 TooltipText =
                     $"Casa dourada {Coordinate.X + 1}, {Coordinate.Y + 1} — aceita X e O sobrepostos";
@@ -181,14 +193,14 @@ namespace TicTacToeRoguelike.Presentation.Board
                 AddThemeStyleboxOverride(
                     "normal",
                     CreateCellStyle(
-                        new Color(0.19f, 0.13f, 0.035f, 0.34f),
-                        new Color(0.70f, 0.48f, 0.18f, 0.62f)));
+                        new Color(0.30f, 0.19f, 0.045f, 0.54f),
+                        new Color(0.92f, 0.67f, 0.22f, 0.92f)));
 
                 AddThemeStyleboxOverride(
                     "disabled",
                     CreateCellStyle(
-                        new Color(0.16f, 0.11f, 0.03f, 0.29f),
-                        new Color(0.62f, 0.42f, 0.15f, 0.52f)));
+                        new Color(0.27f, 0.17f, 0.04f, 0.49f),
+                        new Color(0.88f, 0.61f, 0.19f, 0.82f)));
             }
             else
             {
@@ -211,6 +223,27 @@ namespace TicTacToeRoguelike.Presentation.Board
             QueueRedraw();
         }
 
+        public void SetEraseAmount(float amount)
+        {
+            float clamped =
+                Mathf.Clamp(amount, 0f, 1f);
+
+            if (MathF.Abs(
+                    _eraseAmount - clamped) < 0.001f)
+            {
+                return;
+            }
+
+            _eraseAmount = clamped;
+            QueueRedraw();
+        }
+
+        public void ResetErase()
+        {
+            _eraseAmount = 0f;
+            QueueRedraw();
+        }
+
         public void SetVictoryGlow(
             bool playerGlow,
             bool enemyGlow)
@@ -224,6 +257,143 @@ namespace TicTacToeRoguelike.Presentation.Board
             _playerVictoryGlow = playerGlow;
             _enemyVictoryGlow = enemyGlow;
             QueueRedraw();
+        }
+
+        private void DrawGoldenBackdrop()
+        {
+            Rect2 inset = new Rect2(
+                new Vector2(5f, 5f),
+                new Vector2(
+                    MathF.Max(0f, Size.X - 10f),
+                    MathF.Max(0f, Size.Y - 10f)));
+
+            DrawRect(
+                inset,
+                new Color(
+                    0.42f,
+                    0.27f,
+                    0.055f,
+                    0.28f),
+                true);
+
+            DrawRect(
+                inset,
+                new Color(
+                    0.94f,
+                    0.69f,
+                    0.24f,
+                    0.74f),
+                false,
+                MathF.Max(
+                    2f,
+                    _cellSize * 0.022f));
+
+            int specks = 18;
+
+            for (int i = 0;
+                 i < specks;
+                 i++)
+            {
+                float phase =
+                    (i * 11.73f) +
+                    (Coordinate.X * 7.1f) +
+                    (Coordinate.Y * 13.4f);
+
+                float x =
+                    8f +
+                    MathF.Abs(
+                        MathF.Sin(phase)) *
+                    MathF.Max(1f, Size.X - 16f);
+
+                float y =
+                    8f +
+                    MathF.Abs(
+                        MathF.Sin(phase * 1.67f)) *
+                    MathF.Max(1f, Size.Y - 16f);
+
+                DrawCircle(
+                    new Vector2(x, y),
+                    0.7f +
+                    MathF.Abs(
+                        MathF.Sin(phase * 0.91f)) *
+                    1.3f,
+                    new Color(
+                        1f,
+                        0.77f,
+                        0.31f,
+                        0.18f));
+            }
+        }
+
+        private void DrawEraseMask()
+        {
+            if (_eraseAmount <= 0f)
+                return;
+
+            Color eraseColor =
+                new Color(
+                    0.016f,
+                    0.019f,
+                    0.022f,
+                    0.985f);
+
+            const int bands = 9;
+            float bandHeight =
+                Size.Y / bands;
+
+            for (int band = 0;
+                 band < bands;
+                 band++)
+            {
+                float phase =
+                    (band * 8.17f) +
+                    (Coordinate.X * 3.1f) +
+                    (Coordinate.Y * 5.7f);
+
+                float irregular =
+                    MathF.Sin(phase) *
+                    MathF.Max(
+                        3f,
+                        _cellSize * 0.055f);
+
+                float width =
+                    Mathf.Clamp(
+                        _eraseAmount * Size.X +
+                        irregular,
+                        0f,
+                        Size.X);
+
+                if (width <= 0f)
+                    continue;
+
+                float y =
+                    band * bandHeight;
+
+                DrawRect(
+                    new Rect2(
+                        new Vector2(0f, y),
+                        new Vector2(
+                            width,
+                            bandHeight + 1.5f)),
+                    eraseColor,
+                    true);
+
+                if (width < Size.X)
+                {
+                    DrawCircle(
+                        new Vector2(
+                            width,
+                            y + bandHeight * 0.5f),
+                        MathF.Max(
+                            1.1f,
+                            _cellSize * 0.018f),
+                        new Color(
+                            0.68f,
+                            0.66f,
+                            0.60f,
+                            0.10f));
+                }
+            }
         }
 
         private void DrawVictoryGlow()

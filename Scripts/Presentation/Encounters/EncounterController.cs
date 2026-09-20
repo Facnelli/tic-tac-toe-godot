@@ -102,6 +102,7 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             new HashSet<string>();
 
         private bool _scoreAnimationActive;
+        private bool _roundEraseActive;
         private bool _scoreStepPrepared;
         private bool _showClashRemainder;
         private RoundResolution _animatedResolution;
@@ -1212,6 +1213,7 @@ namespace TicTacToeRoguelike.Presentation.Encounters
         private void StartFirstRound()
         {
             _encounterGeneration++;
+            _roundEraseActive = false;
             _showClashRemainder = false;
             ResetReactionVisualTracking();
 
@@ -1231,10 +1233,21 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                     _configuredBoardSize,
                     _configuredBoardSize);
 
+            // A casa dourada só existe quando há uma casa central única.
+            // Em tabuleiros pares existem quatro casas centrais possíveis, então
+            // nenhuma delas recebe o modificador Golden.
+            if (_configuredBoardSize % 2 == 0)
+            {
+                return new BoardState(definition);
+            }
+
+            int centerIndex =
+                _configuredBoardSize / 2;
+
             BoardCoordinate center =
                 new BoardCoordinate(
-                    _configuredBoardSize / 2,
-                    _configuredBoardSize / 2);
+                    centerIndex,
+                    centerIndex);
 
             CellState goldenCenter =
                 new CellState(
@@ -1396,6 +1409,7 @@ namespace TicTacToeRoguelike.Presentation.Encounters
         private void OnNextRoundPressed()
         {
             if (_scoreAnimationActive ||
+                _roundEraseActive ||
                 _engine.State.Phase !=
                 EncounterPhase.WaitingForNextRound)
             {
@@ -1403,6 +1417,7 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             }
 
             _encounterGeneration++;
+            _roundEraseActive = false;
             _showClashRemainder = false;
             _nextRoundButton.Visible = false;
 
@@ -1454,6 +1469,7 @@ namespace TicTacToeRoguelike.Presentation.Encounters
 
             _nextRoundButton.Visible =
                 !_scoreAnimationActive &&
+                !_roundEraseActive &&
                 state.Phase ==
                 EncounterPhase.WaitingForNextRound;
         }
@@ -1461,6 +1477,16 @@ namespace TicTacToeRoguelike.Presentation.Encounters
         private void UpdateTurnDisplay(
             EncounterState state)
         {
+            if (_roundEraseActive)
+            {
+                _turnLabel.Text =
+                    "APAGANDO TABULEIRO";
+                _turnLabel.AddThemeColorOverride(
+                    "font_color",
+                    Muted);
+                return;
+            }
+
             if (_scoreAnimationActive)
             {
                 _turnLabel.Text = "CONTANDO PONTOS";
@@ -2069,6 +2095,33 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             _animatedResolution = null;
             SetProcess(false);
 
+            BeginRoundErase();
+        }
+
+        private void BeginRoundErase()
+        {
+            if (_boardView == null)
+            {
+                RefreshPresentation();
+                return;
+            }
+
+            _roundEraseActive = true;
+            _nextRoundButton.Visible = false;
+
+            _turnLabel.Text =
+                "APAGANDO TABULEIRO";
+            _turnLabel.AddThemeColorOverride(
+                "font_color",
+                Muted);
+
+            _boardView.PlayRoundErase(
+                OnRoundEraseFinished);
+        }
+
+        private void OnRoundEraseFinished()
+        {
+            _roundEraseActive = false;
             RefreshPresentation();
         }
 
