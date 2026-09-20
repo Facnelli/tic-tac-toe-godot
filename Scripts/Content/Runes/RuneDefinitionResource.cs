@@ -42,6 +42,8 @@ namespace TicTacToeRoguelike.Content.Runes
 
     public static class StarterRuneCatalog
     {
+        private const string PilotRuneResourcePath =
+            "res://Content/Runes/Definitions/PilotIndependentMultiplier.tres";
         public static RuneInventoryState
             CreatePlayerInventory()
         {
@@ -54,7 +56,7 @@ namespace TicTacToeRoguelike.Content.Runes
                 inventory,
                 "rune.echo-stone",
                 "Eco de Pedra",
-                "Uma runa estável de teste. Os efeitos entram no próximo marco.",
+                "Runa estável de teste sem efeito próprio nesta versão.",
                 RuneRarity.Common,
                 "ᚠ");
 
@@ -62,7 +64,7 @@ namespace TicTacToeRoguelike.Content.Runes
                 inventory,
                 "rune.dawn-seal",
                 "Selo da Aurora",
-                "Protótipo de runa abençoada, ainda sem alterar a pontuação.",
+                "Protótipo abençoado sem efeito próprio nesta versão.",
                 RuneRarity.Rare,
                 "ᛉ",
                 RuneAttributeId.Blessed);
@@ -75,6 +77,8 @@ namespace TicTacToeRoguelike.Content.Runes
                 RuneRarity.Legendary,
                 "ᛟ",
                 RuneAttributeId.Intangible);
+
+            AddPilot(inventory);
 
             return inventory;
         }
@@ -91,7 +95,7 @@ namespace TicTacToeRoguelike.Content.Runes
                 inventory,
                 "rune.grey-mark",
                 "Marca Cinzenta",
-                "Runa de teste do oponente. Ainda não possui efeito ativo.",
+                "Runa de teste do oponente sem efeito próprio nesta versão.",
                 RuneRarity.Common,
                 "ᚦ");
 
@@ -104,7 +108,38 @@ namespace TicTacToeRoguelike.Content.Runes
                 "ᚾ",
                 RuneAttributeId.Broken);
 
+            AddPilot(inventory);
+
             return inventory;
+        }
+
+        private static void AddPilot(
+            RuneInventoryState inventory)
+        {
+            RuneDefinitionResource resource =
+                ResourceLoader.Load<RuneDefinitionResource>(
+                    PilotRuneResourcePath);
+
+            if (resource == null)
+            {
+                throw new InvalidOperationException(
+                    $"Não foi possível carregar a runa piloto em {PilotRuneResourcePath}.");
+            }
+
+            RuneDefinition definition =
+                resource.ToDomain();
+
+            if (definition.Id !=
+                RuneDefinitionIds
+                    .PilotIndependentMultiplier)
+            {
+                throw new InvalidOperationException(
+                    "O asset da runa piloto possui DefinitionId incorreto.");
+            }
+
+            Add(
+                inventory,
+                definition);
         }
 
         private static void Add(
@@ -124,6 +159,17 @@ namespace TicTacToeRoguelike.Content.Runes
                     rarity,
                     glyph);
 
+            Add(
+                inventory,
+                definition,
+                attributes);
+        }
+
+        private static void Add(
+            RuneInventoryState inventory,
+            RuneDefinition definition,
+            params RuneAttributeId[] attributes)
+        {
             RuneInventoryAddResult result =
                 inventory.TryAdd(
                     RuneInstance.Create(

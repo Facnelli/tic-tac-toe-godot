@@ -15,6 +15,14 @@ namespace TicTacToeRoguelike.Presentation.Runes
             new Color(0.035f, 0.040f, 0.044f, 0.78f);
 
         private readonly RuneInventoryState _inventory;
+        private readonly Dictionary<string, Control>
+            _stonesByInstanceId =
+                new Dictionary<string, Control>(
+                    StringComparer.Ordinal);
+        private readonly Dictionary<string, Tween>
+            _pulseTweens =
+                new Dictionary<string, Tween>(
+                    StringComparer.Ordinal);
 
         public RuneInventoryView(
             RuneInventoryState inventory)
@@ -33,6 +41,12 @@ namespace TicTacToeRoguelike.Presentation.Runes
 
         public void Rebuild()
         {
+            foreach (Tween tween in _pulseTweens.Values)
+                tween?.Kill();
+
+            _pulseTweens.Clear();
+            _stonesByInstanceId.Clear();
+
             foreach (Node child in GetChildren())
             {
                 RemoveChild(child);
@@ -51,7 +65,14 @@ namespace TicTacToeRoguelike.Presentation.Runes
                 if (rune.IsIntangible)
                     continue;
 
-                AddChild(CreateRuneStone(rune));
+                Control stone =
+                    CreateRuneStone(rune);
+
+                _stonesByInstanceId[
+                    rune.InstanceId.Value] =
+                    stone;
+
+                AddChild(stone);
                 normalShown++;
             }
 
@@ -72,8 +93,75 @@ namespace TicTacToeRoguelike.Presentation.Runes
                 if (!rune.IsIntangible)
                     continue;
 
-                AddChild(CreateRuneStone(rune));
+                Control stone =
+                    CreateRuneStone(rune);
+
+                _stonesByInstanceId[
+                    rune.InstanceId.Value] =
+                    stone;
+
+                AddChild(stone);
             }
+        }
+
+        public bool PulseSource(
+            string sourceInstanceId)
+        {
+            if (string.IsNullOrWhiteSpace(
+                    sourceInstanceId))
+            {
+                return false;
+            }
+
+            if (!_stonesByInstanceId.TryGetValue(
+                    sourceInstanceId,
+                    out Control stone))
+            {
+                return false;
+            }
+
+            if (_pulseTweens.TryGetValue(
+                    sourceInstanceId,
+                    out Tween previous))
+            {
+                previous?.Kill();
+            }
+
+            stone.PivotOffset =
+                stone.Size * 0.5f;
+            stone.Scale = Vector2.One;
+
+            Tween tween = CreateTween();
+
+            tween.TweenProperty(
+                    stone,
+                    "scale",
+                    new Vector2(1.28f, 1.28f),
+                    0.12d)
+                .SetTrans(
+                    Tween.TransitionType.Back)
+                .SetEase(
+                    Tween.EaseType.Out);
+
+            tween.TweenProperty(
+                    stone,
+                    "scale",
+                    Vector2.One,
+                    0.18d)
+                .SetTrans(
+                    Tween.TransitionType.Quad)
+                .SetEase(
+                    Tween.EaseType.Out);
+
+            tween.TweenCallback(
+                Callable.From(
+                    () => _pulseTweens.Remove(
+                        sourceInstanceId)));
+
+            _pulseTweens[sourceInstanceId] =
+                tween;
+
+            return true;
         }
 
         private static Control CreateRuneStone(

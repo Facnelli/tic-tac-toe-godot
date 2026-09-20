@@ -15,6 +15,9 @@ para Godot e a transferência de engine cobre os Marcos 5, 6 e 7.
 - Marco 8: domínio de runas, inventário de 5 vagas, Intangível e HUD real.
 - Marco 9: `EffectEngine` determinístico, handlers ordenados, contexto isolado,
   relatórios de execução e contribuições integradas ao `ScorePipeline`.
+- Marco 10: primeira runa funcional (`rune.pilot.independent-multiplier`),
+  carregada de um Resource Godot, aplicando MULT ×1,20 com animação genérica da
+  pedra de origem e do multiplicador.
 - Casa central Golden e parâmetros padrão do protótipo Unity preservados.
 - Testes puros do projeto antigo migrados para NUnit/.NET.
 - CI compila o projeto C# e roda a suíte de regressão.

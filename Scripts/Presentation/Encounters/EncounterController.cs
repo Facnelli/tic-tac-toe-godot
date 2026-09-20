@@ -6,10 +6,10 @@ using TicTacToeRoguelike.Application.AI;
 using TicTacToeRoguelike.Content.Runes;
 using TicTacToeRoguelike.Application.Actions;
 using TicTacToeRoguelike.Application.Encounters;
+using TicTacToeRoguelike.Application.Effects;
 using TicTacToeRoguelike.Domain.Actions;
 using TicTacToeRoguelike.Domain.Boards;
 using TicTacToeRoguelike.Domain.Combat;
-using TicTacToeRoguelike.Domain.Effects;
 using TicTacToeRoguelike.Domain.Moves;
 using TicTacToeRoguelike.Domain.Reactions;
 using TicTacToeRoguelike.Domain.Runes;
@@ -61,6 +61,8 @@ namespace TicTacToeRoguelike.Presentation.Encounters
         private BasicTicTacToePolicy _enemyPolicy;
         private BoardView _boardView;
         private CombatReportAnimator _combatAnimator;
+        private RuneInventoryView _playerRuneView;
+        private RuneInventoryView _enemyRuneView;
 
         private Label _roundLabel;
         private Label _turnLabel;
@@ -633,7 +635,8 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             PanelContainer opponentRunes =
                 CreateRunePanel(
                     "RUNAS DO OPONENTE",
-                    _engine.State.EnemyRunes);
+                    _engine.State.EnemyRunes,
+                    out _enemyRuneView);
             Place(opponentRunes, 0.055f, 0.050f, 0.340f, 0.205f);
             layout.AddChild(opponentRunes);
 
@@ -708,7 +711,8 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             PanelContainer playerRunes =
                 CreateRunePanel(
                     "RUNAS DO JOGADOR",
-                    _engine.State.PlayerRunes);
+                    _engine.State.PlayerRunes,
+                    out _playerRuneView);
             Place(playerRunes, 0.055f, 0.745f, 0.430f, 0.930f);
             layout.AddChild(playerRunes);
 
@@ -737,7 +741,8 @@ namespace TicTacToeRoguelike.Presentation.Encounters
 
         private PanelContainer CreateRunePanel(
             string title,
-            RuneInventoryState inventory)
+            RuneInventoryState inventory,
+            out RuneInventoryView inventoryView)
         {
             PanelContainer panel = CreateFramedPanel();
             MarginContainer margin = AddPadding(panel, 18, 12);
@@ -750,7 +755,7 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             column.AddChild(heading);
             column.AddChild(CreateDivider());
 
-            RuneInventoryView inventoryView =
+            inventoryView =
                 new RuneInventoryView(inventory)
                 {
                     SizeFlagsHorizontal =
@@ -1215,7 +1220,7 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                 rules,
                 playerRunes,
                 enemyRunes,
-                new EffectEngine(),
+                DefaultEffectEngineFactory.Create(),
                 executor,
                 availability,
                 new ReactionStateFactory(),
@@ -1785,6 +1790,9 @@ namespace TicTacToeRoguelike.Presentation.Encounters
         {
             _boardView.HideScoringSequence();
 
+            PulseContributionSource(
+                step.Contribution);
+
             SequenceMatch sequence =
                 FindSequenceForStep(result, step);
 
@@ -1796,6 +1804,33 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             ShowFloatingSequenceValue(
                 result.Participant,
                 step.Contribution.Amount);
+        }
+
+        private void PulseContributionSource(
+            ScoreContribution contribution)
+        {
+            if (contribution == null ||
+                string.IsNullOrWhiteSpace(
+                    contribution.SourceInstanceId))
+            {
+                return;
+            }
+
+            RuneInventoryView inventoryView = null;
+
+            if (contribution.SourceOwner ==
+                ScoreActor.Player)
+            {
+                inventoryView = _playerRuneView;
+            }
+            else if (contribution.SourceOwner ==
+                     ScoreActor.Enemy)
+            {
+                inventoryView = _enemyRuneView;
+            }
+
+            inventoryView?.PulseSource(
+                contribution.SourceInstanceId);
         }
 
         private static SequenceMatch FindSequenceForStep(

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="RuneDefinitionResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Content/Runes/RuneDefinitionResource.cs" id="1_rune"]
+
+[resource]
+script = ExtResource("1_rune")
+DefinitionId = "rune.pilot.independent-multiplier"
+DisplayName = "Runa do Eco"
+Description = "Passiva: aplica MULT ×1,20 ao seu placar em cada resolução."
+Rarity = 1
+Glyph = "ᛞ"
