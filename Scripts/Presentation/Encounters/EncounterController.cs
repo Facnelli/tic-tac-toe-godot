@@ -9,6 +9,7 @@ using TicTacToeRoguelike.Application.Encounters;
 using TicTacToeRoguelike.Domain.Actions;
 using TicTacToeRoguelike.Domain.Boards;
 using TicTacToeRoguelike.Domain.Combat;
+using TicTacToeRoguelike.Domain.Effects;
 using TicTacToeRoguelike.Domain.Moves;
 using TicTacToeRoguelike.Domain.Reactions;
 using TicTacToeRoguelike.Domain.Runes;
@@ -1214,6 +1215,7 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                 rules,
                 playerRunes,
                 enemyRunes,
+                new EffectEngine(),
                 executor,
                 availability,
                 new ReactionStateFactory(),
