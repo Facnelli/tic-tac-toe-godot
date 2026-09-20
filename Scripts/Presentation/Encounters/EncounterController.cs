@@ -36,6 +36,18 @@ namespace TicTacToeRoguelike.Presentation.Encounters
         private const double ScoreSideDelay = 0.22;
         private const double ScoreSequenceGap = 0.10;
         private const double EnemyTurnVisualDelay = 0.36;
+        private const double ClashCancellationDuration = 0.72;
+        private const double DamageTelegraphDuration = 0.52;
+        private const double HealthReductionDuration = 0.62;
+
+        private enum RoundAnimationPhase
+        {
+            None = 0,
+            ScoreCounting = 1,
+            ClashCancellation = 2,
+            DamageTelegraph = 3,
+            HealthReduction = 4
+        }
 
         private readonly SequenceEvaluator _sequenceEvaluator =
             new SequenceEvaluator();
@@ -62,9 +74,13 @@ namespace TicTacToeRoguelike.Presentation.Encounters
         private Label _reactionPlayerCountLabel;
         private Label _reactionEnemyCountLabel;
         private Label _reactionNeedLabel;
+        private Label _playerDamageLabel;
+        private Label _enemyDamageLabel;
 
         private ProgressBar _playerHpBar;
         private ProgressBar _enemyHpBar;
+        private Control _playerHpPanel;
+        private Control _enemyHpPanel;
         private Button _nextRoundButton;
 
         private SpinBox _boardSizeSpin;
@@ -72,6 +88,8 @@ namespace TicTacToeRoguelike.Presentation.Encounters
 
         private Tween _playerFloatingTween;
         private Tween _enemyFloatingTween;
+        private Tween _playerMultiplierTween;
+        private Tween _enemyMultiplierTween;
 
         private int _configuredBoardSize = 3;
         private int _configuredVictoryLength = 3;
@@ -85,10 +103,15 @@ namespace TicTacToeRoguelike.Presentation.Encounters
 
         private bool _scoreAnimationActive;
         private bool _scoreStepPrepared;
+        private bool _showClashRemainder;
         private RoundResolution _animatedResolution;
+        private RoundAnimationPhase _roundAnimationPhase;
         private int _scoreAnimationSide;
         private int _scoreAnimationStep;
         private double _scoreStepElapsed;
+        private double _roundAnimationElapsed;
+        private Control _damageShakeTarget;
+        private Vector2 _damageShakeBasePosition;
 
         public override void _Ready()
         {
@@ -98,35 +121,67 @@ namespace TicTacToeRoguelike.Presentation.Encounters
 
         public override void _Process(double delta)
         {
-            if (!_scoreAnimationActive || _animatedResolution == null)
+            if (!_scoreAnimationActive ||
+                _animatedResolution == null)
             {
                 SetProcess(false);
                 return;
             }
 
+            switch (_roundAnimationPhase)
+            {
+                case RoundAnimationPhase.ScoreCounting:
+                    ProcessScoreCounting(delta);
+                    break;
+
+                case RoundAnimationPhase.ClashCancellation:
+                    ProcessClashCancellation(delta);
+                    break;
+
+                case RoundAnimationPhase.DamageTelegraph:
+                    ProcessDamageTelegraph(delta);
+                    break;
+
+                case RoundAnimationPhase.HealthReduction:
+                    ProcessHealthReduction(delta);
+                    break;
+
+                default:
+                    SetProcess(false);
+                    break;
+            }
+        }
+
+        private void ProcessScoreCounting(double delta)
+        {
             if (_scoreStepElapsed < 0d)
             {
                 _scoreStepElapsed += delta;
                 return;
             }
 
-            ScorePipelineResult result = _scoreAnimationSide == 0
-                ? _animatedResolution.PlayerScore
-                : _animatedResolution.EnemyScore;
+            ScorePipelineResult result =
+                _scoreAnimationSide == 0
+                    ? _animatedResolution.PlayerScore
+                    : _animatedResolution.EnemyScore;
 
-            Label scoreLabel = _scoreAnimationSide == 0
-                ? _playerScoreLabel
-                : _enemyScoreLabel;
+            Label scoreLabel =
+                _scoreAnimationSide == 0
+                    ? _playerScoreLabel
+                    : _enemyScoreLabel;
 
-            Label multiplierLabel = _scoreAnimationSide == 0
-                ? _playerMultiplierLabel
-                : _enemyMultiplierLabel;
+            Label multiplierLabel =
+                _scoreAnimationSide == 0
+                    ? _playerMultiplierLabel
+                    : _enemyMultiplierLabel;
 
-            Label detailLabel = _scoreAnimationSide == 0
-                ? _playerScoreDetailLabel
-                : _enemyScoreDetailLabel;
+            Label detailLabel =
+                _scoreAnimationSide == 0
+                    ? _playerScoreDetailLabel
+                    : _enemyScoreDetailLabel;
 
-            IReadOnlyList<ScoreStep> steps = result.Breakdown.Steps;
+            IReadOnlyList<ScoreStep> steps =
+                result.Breakdown.Steps;
 
             if (_scoreAnimationStep >= steps.Count)
             {
@@ -140,45 +195,69 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                     $"MULT × {FormatMultiplier(result.Breakdown.TotalMultiplier)}";
 
                 detailLabel.Text =
-                    steps.Count == 0 ? "SEM PONTOS" : "TOTAL";
+                    steps.Count == 0
+                        ? "SEM PONTOS"
+                        : "TOTAL";
 
                 AdvanceScoreAnimationSide();
                 return;
             }
 
-            ScoreStep step = steps[_scoreAnimationStep];
+            ScoreStep step =
+                steps[_scoreAnimationStep];
 
             if (!_scoreStepPrepared)
             {
-                PrepareScoreStep(result, step);
+                PrepareScoreStep(
+                    result,
+                    step);
+
                 _scoreStepPrepared = true;
             }
 
-            double duration = GetScoreStepDuration(steps.Count);
+            double duration =
+                GetScoreStepDuration(steps.Count);
+
             _scoreStepElapsed += delta;
 
-            double progress = Math.Clamp(
-                _scoreStepElapsed / duration,
-                0d,
-                1d);
+            double progress =
+                Math.Clamp(
+                    _scoreStepElapsed / duration,
+                    0d,
+                    1d);
 
-            double eased = 1d - Math.Pow(1d - progress, 3d);
-            double before = (double)step.ScoreBefore;
-            double after = (double)step.ScoreAfter;
+            double eased =
+                1d - Math.Pow(1d - progress, 3d);
+
+            double before =
+                (double)step.ScoreBefore;
+            double after =
+                (double)step.ScoreAfter;
+
             double visibleScore =
-                before + ((after - before) * eased);
+                before +
+                ((after - before) * eased);
 
-            scoreLabel.Text = FormatAnimatedScore(visibleScore);
-            detailLabel.Text = BuildScoreStepText(step);
+            scoreLabel.Text =
+                FormatAnimatedScore(visibleScore);
+
+            detailLabel.Text =
+                BuildScoreStepText(step);
 
             if (progress < 1d)
                 return;
 
             _boardView.HideScoringSequence();
 
+            decimal previousMultiplier =
+                CalculateVisibleMultiplier(
+                    result.Breakdown,
+                    _scoreAnimationStep);
+
             _scoreAnimationStep++;
             _scoreStepPrepared = false;
-            _scoreStepElapsed = -ScoreSequenceGap;
+            _scoreStepElapsed =
+                -ScoreSequenceGap;
 
             decimal visibleMultiplier =
                 CalculateVisibleMultiplier(
@@ -187,6 +266,220 @@ namespace TicTacToeRoguelike.Presentation.Encounters
 
             multiplierLabel.Text =
                 $"MULT × {FormatMultiplier(visibleMultiplier)}";
+
+            if (visibleMultiplier != previousMultiplier)
+            {
+                BounceMultiplier(
+                    multiplierLabel,
+                    result.Participant);
+            }
+        }
+
+        private void ProcessClashCancellation(
+            double delta)
+        {
+            _roundAnimationElapsed += delta;
+
+            double progress =
+                Math.Clamp(
+                    _roundAnimationElapsed /
+                    ClashCancellationDuration,
+                    0d,
+                    1d);
+
+            double eased =
+                progress < 0.5d
+                    ? 2d * progress * progress
+                    : 1d -
+                      Math.Pow(-2d * progress + 2d, 2d) /
+                      2d;
+
+            ClashReport clash =
+                _animatedResolution.Clash;
+
+            int cancelled =
+                (int)Math.Round(
+                    clash.CancelledScorePerSide *
+                    eased,
+                    MidpointRounding.AwayFromZero);
+
+            int playerVisible =
+                Math.Max(
+                    clash.PlayerRemainingScore,
+                    clash.PlayerScore - cancelled);
+
+            int enemyVisible =
+                Math.Max(
+                    clash.EnemyRemainingScore,
+                    clash.EnemyScore - cancelled);
+
+            _playerScoreLabel.Text =
+                playerVisible.ToString(
+                    CultureInfo.InvariantCulture);
+
+            _enemyScoreLabel.Text =
+                enemyVisible.ToString(
+                    CultureInfo.InvariantCulture);
+
+            if (progress < 1d)
+                return;
+
+            _playerScoreLabel.Text =
+                clash.PlayerRemainingScore.ToString(
+                    CultureInfo.InvariantCulture);
+
+            _enemyScoreLabel.Text =
+                clash.EnemyRemainingScore.ToString(
+                    CultureInfo.InvariantCulture);
+
+            BeginDamageTelegraph();
+        }
+
+        private void ProcessDamageTelegraph(
+            double delta)
+        {
+            DamageReport damage =
+                _animatedResolution.Damage;
+
+            if (!damage.HasTarget ||
+                damage.AppliedHealthDamage <= 0)
+            {
+                FinishScoreAnimation();
+                return;
+            }
+
+            _roundAnimationElapsed += delta;
+
+            double progress =
+                Math.Clamp(
+                    _roundAnimationElapsed /
+                    DamageTelegraphDuration,
+                    0d,
+                    1d);
+
+            float decay =
+                (float)(1d - progress);
+
+            float shake =
+                MathF.Sin(
+                    (float)_roundAnimationElapsed *
+                    58f) *
+                9f *
+                decay;
+
+            if (_damageShakeTarget != null)
+            {
+                _damageShakeTarget.Position =
+                    _damageShakeBasePosition +
+                    new Vector2(shake, 0f);
+            }
+
+            Label damageLabel =
+                damage.TargetActor == ScoreActor.Player
+                    ? _playerDamageLabel
+                    : _enemyDamageLabel;
+
+            if (damageLabel != null)
+            {
+                float scale =
+                    0.72f +
+                    (float)(
+                        1d -
+                        Math.Pow(1d - progress, 3d)) *
+                    0.42f;
+
+                damageLabel.Scale =
+                    Vector2.One * scale;
+
+                damageLabel.Modulate =
+                    new Color(
+                        1f,
+                        1f,
+                        1f,
+                        progress > 0.78d
+                            ? (float)(
+                                1d -
+                                ((progress - 0.78d) / 0.22d))
+                            : 1f);
+            }
+
+            if (progress < 1d)
+                return;
+
+            if (_damageShakeTarget != null)
+            {
+                _damageShakeTarget.Position =
+                    _damageShakeBasePosition;
+            }
+
+            BeginHealthReduction();
+        }
+
+        private void ProcessHealthReduction(
+            double delta)
+        {
+            DamageReport damage =
+                _animatedResolution.Damage;
+
+            if (!damage.HasTarget)
+            {
+                FinishScoreAnimation();
+                return;
+            }
+
+            _roundAnimationElapsed += delta;
+
+            double progress =
+                Math.Clamp(
+                    _roundAnimationElapsed /
+                    HealthReductionDuration,
+                    0d,
+                    1d);
+
+            double eased =
+                1d - Math.Pow(1d - progress, 3d);
+
+            CombatantSnapshot before =
+                damage.TargetBefore;
+            CombatantSnapshot after =
+                damage.TargetAfter;
+
+            int visibleHealth =
+                (int)Math.Round(
+                    before.CurrentHealth +
+                    (after.CurrentHealth -
+                     before.CurrentHealth) *
+                    eased,
+                    MidpointRounding.AwayFromZero);
+
+            ProgressBar bar =
+                damage.TargetActor == ScoreActor.Player
+                    ? _playerHpBar
+                    : _enemyHpBar;
+
+            Label healthText =
+                damage.TargetActor == ScoreActor.Player
+                    ? _playerHpText
+                    : _enemyHpText;
+
+            bar.MaxValue =
+                before.MaximumHealth;
+            bar.Value =
+                visibleHealth;
+
+            healthText.Text =
+                $"{visibleHealth} / {before.MaximumHealth}";
+
+            if (progress < 1d)
+                return;
+
+            bar.Value =
+                after.CurrentHealth;
+
+            healthText.Text =
+                $"{after.CurrentHealth} / {after.MaximumHealth}";
+
+            FinishScoreAnimation();
         }
 
         private void BuildSetupMenu()
@@ -351,8 +644,19 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                 Rose,
                 out _enemyHpBar,
                 out _enemyHpText);
+            _enemyHpPanel = opponentHp;
             Place(opponentHp, 0.680f, 0.050f, 0.950f, 0.170f);
             layout.AddChild(opponentHp);
+
+            _enemyDamageLabel =
+                CreateDamageLabel();
+            Place(
+                _enemyDamageLabel,
+                0.805f,
+                0.096f,
+                0.925f,
+                0.154f);
+            layout.AddChild(_enemyDamageLabel);
 
             PanelContainer boardPanel = CreateBoardPanel();
             Place(boardPanel, 0.350f, 0.190f, 0.660f, 0.720f);
@@ -404,8 +708,19 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                 Cyan,
                 out _playerHpBar,
                 out _playerHpText);
+            _playerHpPanel = playerHp;
             Place(playerHp, 0.650f, 0.775f, 0.950f, 0.910f);
             layout.AddChild(playerHp);
+
+            _playerDamageLabel =
+                CreateDamageLabel();
+            Place(
+                _playerDamageLabel,
+                0.800f,
+                0.820f,
+                0.925f,
+                0.878f);
+            layout.AddChild(_playerDamageLabel);
 
             _combatAnimator = new CombatReportAnimator();
             AddChild(_combatAnimator);
@@ -569,6 +884,19 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             row.AddChild(value);
 
             return panel;
+        }
+
+        private static Label CreateDamageLabel()
+        {
+            Label label =
+                CreateHeading("", 32, Rose);
+
+            label.Visible = false;
+            label.MouseFilter =
+                MouseFilterEnum.Ignore;
+            label.ZIndex = 30;
+
+            return label;
         }
 
         private PanelContainer CreateScorePanel(
@@ -884,6 +1212,7 @@ namespace TicTacToeRoguelike.Presentation.Encounters
         private void StartFirstRound()
         {
             _encounterGeneration++;
+            _showClashRemainder = false;
             ResetReactionVisualTracking();
 
             _engine.StartEncounter(
@@ -1074,6 +1403,7 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             }
 
             _encounterGeneration++;
+            _showClashRemainder = false;
             _nextRoundButton.Visible = false;
 
             _boardView.ClearReactionHighlights();
@@ -1296,17 +1626,32 @@ namespace TicTacToeRoguelike.Presentation.Encounters
 
             if (state.LastRoundResolution != null)
             {
-                playerScore =
-                    state.LastRoundResolution
-                        .PlayerScore
-                        .Breakdown
-                        .FinalScore;
+                if (_showClashRemainder)
+                {
+                    playerScore =
+                        state.LastRoundResolution
+                            .Clash
+                            .PlayerRemainingScore;
 
-                enemyScore =
-                    state.LastRoundResolution
-                        .EnemyScore
-                        .Breakdown
-                        .FinalScore;
+                    enemyScore =
+                        state.LastRoundResolution
+                            .Clash
+                            .EnemyRemainingScore;
+                }
+                else
+                {
+                    playerScore =
+                        state.LastRoundResolution
+                            .PlayerScore
+                            .Breakdown
+                            .FinalScore;
+
+                    enemyScore =
+                        state.LastRoundResolution
+                            .EnemyScore
+                            .Breakdown
+                            .FinalScore;
+                }
 
                 playerMultiplier =
                     state.LastRoundResolution
@@ -1347,10 +1692,14 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                     nameof(resolution));
 
             _scoreAnimationActive = true;
+            _showClashRemainder = false;
+            _roundAnimationPhase =
+                RoundAnimationPhase.ScoreCounting;
             _scoreAnimationSide = 0;
             _scoreAnimationStep = 0;
             _scoreStepPrepared = false;
             _scoreStepElapsed = -ScoreSideDelay;
+            _roundAnimationElapsed = 0d;
 
             _boardView.HideScoringSequence();
 
@@ -1360,6 +1709,22 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             _enemyMultiplierLabel.Text = "MULT × 1,0";
             _playerScoreDetailLabel.Text = "CONTANDO...";
             _enemyScoreDetailLabel.Text = "";
+
+            // O domínio já aplicou o dano, mas a interface segura a fotografia
+            // anterior até terminar pontuação -> confronto -> impacto -> vida.
+            UpdateHealth(
+                _playerHpBar,
+                _playerHpText,
+                resolution.PlayerBefore.CurrentHealth,
+                resolution.PlayerBefore.MaximumHealth);
+
+            UpdateHealth(
+                _enemyHpBar,
+                _enemyHpText,
+                resolution.EnemyBefore.CurrentHealth,
+                resolution.EnemyBefore.MaximumHealth);
+
+            HideDamageLabels();
 
             _nextRoundButton.Visible = false;
             SetProcess(true);
@@ -1475,11 +1840,172 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                 _scoreAnimationSide = 1;
                 _scoreAnimationStep = 0;
                 _scoreStepPrepared = false;
-                _scoreStepElapsed = -ScoreSideDelay;
+                _scoreStepElapsed =
+                    -ScoreSideDelay;
                 return;
             }
 
-            FinishScoreAnimation();
+            BeginClashCancellation();
+        }
+
+        private void BeginClashCancellation()
+        {
+            _boardView.HideScoringSequence();
+
+            _roundAnimationPhase =
+                RoundAnimationPhase.ClashCancellation;
+            _roundAnimationElapsed = 0d;
+
+            _playerScoreDetailLabel.Text =
+                "ANULANDO";
+            _enemyScoreDetailLabel.Text =
+                "ANULANDO";
+
+            _turnLabel.Text =
+                "CONFRONTO DE PONTOS";
+            _turnLabel.AddThemeColorOverride(
+                "font_color",
+                Ivory);
+
+            _playerScoreLabel.Text =
+                _animatedResolution
+                    .Clash
+                    .PlayerScore
+                    .ToString(
+                        CultureInfo.InvariantCulture);
+
+            _enemyScoreLabel.Text =
+                _animatedResolution
+                    .Clash
+                    .EnemyScore
+                    .ToString(
+                        CultureInfo.InvariantCulture);
+        }
+
+        private void BeginDamageTelegraph()
+        {
+            _roundAnimationPhase =
+                RoundAnimationPhase.DamageTelegraph;
+            _roundAnimationElapsed = 0d;
+
+            _playerScoreDetailLabel.Text = "";
+            _enemyScoreDetailLabel.Text = "";
+
+            DamageReport damage =
+                _animatedResolution.Damage;
+
+            if (!damage.HasTarget ||
+                damage.AppliedHealthDamage <= 0)
+            {
+                FinishScoreAnimation();
+                return;
+            }
+
+            _turnLabel.Text =
+                "IMPACTO";
+            _turnLabel.AddThemeColorOverride(
+                "font_color",
+                Rose);
+
+            Label damageLabel =
+                damage.TargetActor == ScoreActor.Player
+                    ? _playerDamageLabel
+                    : _enemyDamageLabel;
+
+            _damageShakeTarget =
+                damage.TargetActor == ScoreActor.Player
+                    ? _playerHpPanel
+                    : _enemyHpPanel;
+
+            if (_damageShakeTarget != null)
+            {
+                _damageShakeBasePosition =
+                    _damageShakeTarget.Position;
+            }
+
+            damageLabel.Text =
+                $"-{damage.AppliedHealthDamage}";
+            damageLabel.Visible = true;
+            damageLabel.Modulate = Colors.White;
+            damageLabel.Scale =
+                new Vector2(0.72f, 0.72f);
+            damageLabel.PivotOffset =
+                damageLabel.Size * 0.5f;
+        }
+
+        private void BeginHealthReduction()
+        {
+            _roundAnimationPhase =
+                RoundAnimationPhase.HealthReduction;
+            _roundAnimationElapsed = 0d;
+
+            _turnLabel.Text =
+                "DANO";
+            _turnLabel.AddThemeColorOverride(
+                "font_color",
+                Rose);
+        }
+
+        private void BounceMultiplier(
+            Label multiplierLabel,
+            ScoreActor actor)
+        {
+            Tween previous =
+                actor == ScoreActor.Player
+                    ? _playerMultiplierTween
+                    : _enemyMultiplierTween;
+
+            previous?.Kill();
+
+            multiplierLabel.PivotOffset =
+                multiplierLabel.Size * 0.5f;
+            multiplierLabel.Scale =
+                Vector2.One;
+
+            Tween tween =
+                CreateTween();
+
+            tween.TweenProperty(
+                    multiplierLabel,
+                    "scale",
+                    new Vector2(1.30f, 1.30f),
+                    0.11d)
+                .SetTrans(Tween.TransitionType.Back)
+                .SetEase(Tween.EaseType.Out);
+
+            tween.TweenProperty(
+                    multiplierLabel,
+                    "scale",
+                    Vector2.One,
+                    0.16d)
+                .SetTrans(Tween.TransitionType.Quad)
+                .SetEase(Tween.EaseType.Out);
+
+            if (actor == ScoreActor.Player)
+                _playerMultiplierTween = tween;
+            else
+                _enemyMultiplierTween = tween;
+        }
+
+        private void HideDamageLabels()
+        {
+            if (_playerDamageLabel != null)
+            {
+                _playerDamageLabel.Visible = false;
+                _playerDamageLabel.Scale =
+                    Vector2.One;
+                _playerDamageLabel.Modulate =
+                    Colors.White;
+            }
+
+            if (_enemyDamageLabel != null)
+            {
+                _enemyDamageLabel.Visible = false;
+                _enemyDamageLabel.Scale =
+                    Vector2.One;
+                _enemyDamageLabel.Modulate =
+                    Colors.White;
+            }
         }
 
         private void FinishScoreAnimation()
@@ -1488,21 +2014,27 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             _boardView.ClearReactionHighlights();
             ResetReactionVisualTracking();
 
+            if (_damageShakeTarget != null)
+            {
+                _damageShakeTarget.Position =
+                    _damageShakeBasePosition;
+            }
+
+            HideDamageLabels();
+
             if (_animatedResolution != null)
             {
                 _playerScoreLabel.Text =
                     _animatedResolution
-                        .PlayerScore
-                        .Breakdown
-                        .FinalScore
+                        .Clash
+                        .PlayerRemainingScore
                         .ToString(
                             CultureInfo.InvariantCulture);
 
                 _enemyScoreLabel.Text =
                     _animatedResolution
-                        .EnemyScore
-                        .Breakdown
-                        .FinalScore
+                        .Clash
+                        .EnemyRemainingScore
                         .ToString(
                             CultureInfo.InvariantCulture);
 
@@ -1511,6 +2043,18 @@ namespace TicTacToeRoguelike.Presentation.Encounters
 
                 _enemyMultiplierLabel.Text =
                     $"MULT × {FormatMultiplier(_animatedResolution.EnemyScore.Breakdown.TotalMultiplier)}";
+
+                UpdateHealth(
+                    _playerHpBar,
+                    _playerHpText,
+                    _animatedResolution.PlayerAfter.CurrentHealth,
+                    _animatedResolution.PlayerAfter.MaximumHealth);
+
+                UpdateHealth(
+                    _enemyHpBar,
+                    _enemyHpText,
+                    _animatedResolution.EnemyAfter.CurrentHealth,
+                    _animatedResolution.EnemyAfter.MaximumHealth);
             }
 
             _playerScoreDetailLabel.Text = "";
@@ -1518,6 +2062,10 @@ namespace TicTacToeRoguelike.Presentation.Encounters
 
             _scoreAnimationActive = false;
             _scoreStepPrepared = false;
+            _showClashRemainder = true;
+            _roundAnimationPhase =
+                RoundAnimationPhase.None;
+            _damageShakeTarget = null;
             _animatedResolution = null;
             SetProcess(false);
 
