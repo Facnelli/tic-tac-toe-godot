@@ -4,6 +4,7 @@ using TicTacToeRoguelike.Domain.Actions;
 using TicTacToeRoguelike.Domain.Boards;
 using TicTacToeRoguelike.Domain.Combat;
 using TicTacToeRoguelike.Domain.Reactions;
+using TicTacToeRoguelike.Domain.Runes;
 using TicTacToeRoguelike.Domain.Scoring;
 using TicTacToeRoguelike.Domain.Turns;
 
@@ -146,6 +147,23 @@ namespace TicTacToeRoguelike.Application.Encounters
                 playerState,
                 enemyState,
                 rules,
+                new RuneInventoryState(ScoreActor.Player),
+                new RuneInventoryState(ScoreActor.Enemy))
+        {
+        }
+
+        public EncounterEngine(
+            CombatantState playerState,
+            CombatantState enemyState,
+            EncounterRules rules,
+            RuneInventoryState playerRunes,
+            RuneInventoryState enemyRunes)
+            : this(
+                playerState,
+                enemyState,
+                rules,
+                playerRunes,
+                enemyRunes,
                 new ActionExecutor(),
                 new ActionAvailabilityService(),
                 new ReactionStateFactory(),
@@ -158,7 +176,7 @@ namespace TicTacToeRoguelike.Application.Encounters
         }
 
         /// <summary>
-        /// Composição explícita usada por testes e pelo futuro composition root.
+        /// Composição explícita preservada para os testes anteriores.
         /// </summary>
         public EncounterEngine(
             CombatantState playerState,
@@ -172,11 +190,47 @@ namespace TicTacToeRoguelike.Application.Encounters
             ClashResolver clashResolver,
             DamageResolver damageResolver,
             IEncounterTurnScheduler turnScheduler)
+            : this(
+                playerState,
+                enemyState,
+                rules,
+                new RuneInventoryState(ScoreActor.Player),
+                new RuneInventoryState(ScoreActor.Enemy),
+                actionExecutor,
+                actionAvailabilityService,
+                reactionStateFactory,
+                reactionRule,
+                scorePipeline,
+                clashResolver,
+                damageResolver,
+                turnScheduler)
+        {
+        }
+
+        /// <summary>
+        /// Composição explícita com inventários autoritativos de ambos os lados.
+        /// </summary>
+        public EncounterEngine(
+            CombatantState playerState,
+            CombatantState enemyState,
+            EncounterRules rules,
+            RuneInventoryState playerRunes,
+            RuneInventoryState enemyRunes,
+            ActionExecutor actionExecutor,
+            ActionAvailabilityService actionAvailabilityService,
+            ReactionStateFactory reactionStateFactory,
+            ReactionRule reactionRule,
+            ScorePipeline scorePipeline,
+            ClashResolver clashResolver,
+            DamageResolver damageResolver,
+            IEncounterTurnScheduler turnScheduler)
         {
             State = new EncounterState(
                 playerState,
                 enemyState,
-                rules);
+                rules,
+                playerRunes,
+                enemyRunes);
 
             _actionExecutor = actionExecutor ??
                 throw new ArgumentNullException(nameof(actionExecutor));
