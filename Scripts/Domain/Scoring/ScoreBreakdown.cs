@@ -107,6 +107,15 @@ namespace TicTacToeRoguelike.Domain.Scoring
         public string SourceId { get; }
 
         /// <summary>
+        /// Identidade opcional da instância concreta que originou a contribuição.
+        ///
+        /// SourceId descreve a fonte lógica e continua servindo para ordenação.
+        /// SourceInstanceId permite que a apresentação localize, por exemplo, a
+        /// pedra de runa exata que deve reagir visualmente sem conhecer seu tipo.
+        /// </summary>
+        public string SourceInstanceId { get; }
+
+        /// <summary>
         /// Texto curto que poderá ser apresentado ao jogador ou no log.
         /// </summary>
         public string DisplayText { get; }
@@ -164,7 +173,8 @@ namespace TicTacToeRoguelike.Domain.Scoring
             ScoreActor target,
             ScorePhase phase,
             decimal amount,
-            int priority = 0)
+            int priority = 0,
+            string sourceInstanceId = null)
         {
             if (string.IsNullOrWhiteSpace(sourceId))
             {
@@ -238,7 +248,16 @@ namespace TicTacToeRoguelike.Domain.Scoring
                     "Pontos básicos não podem ser negativos.");
             }
 
+            if (sourceInstanceId != null &&
+                string.IsNullOrWhiteSpace(sourceInstanceId))
+            {
+                throw new ArgumentException(
+                    "SourceInstanceId não pode ser vazio quando informado.",
+                    nameof(sourceInstanceId));
+            }
+
             SourceId = sourceId;
+            SourceInstanceId = sourceInstanceId?.Trim();
             DisplayText = displayText;
             SourceOwner = sourceOwner;
             Target = target;
@@ -319,7 +338,8 @@ namespace TicTacToeRoguelike.Domain.Scoring
             ScoreActor sourceOwner,
             ScoreActor target,
             decimal factor,
-            int priority = 0)
+            int priority = 0,
+            string sourceInstanceId = null)
         {
             return new ScoreContribution(
                 sourceId,
@@ -328,7 +348,8 @@ namespace TicTacToeRoguelike.Domain.Scoring
                 target,
                 ScorePhase.IndependentMultiplier,
                 factor,
-                priority);
+                priority,
+                sourceInstanceId);
         }
 
         /// <summary>
