@@ -28,7 +28,7 @@ namespace TicTacToeRoguelike.Presentation.Arena
 
             // Leve variação tonal para evitar aparência de fundo chapado.
             DrawRect(
-                new Rect2(size * 0.015f, size * 0.02f, size.X * 0.97f, size.Y * 0.96f),
+                new Rect2(size * 0.015f, new Vector2(size.X * 0.97f, size.Y * 0.96f)),
                 StoneLift);
 
             Vector2 center = size * 0.5f;
