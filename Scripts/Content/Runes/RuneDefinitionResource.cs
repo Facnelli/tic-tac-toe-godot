@@ -56,7 +56,7 @@ namespace TicTacToeRoguelike.Content.Runes
                 inventory,
                 "rune.echo-stone",
                 "Eco de Pedra",
-                "Uma runa estável de teste. Os efeitos entram no próximo marco.",
+                "Runa estável de teste sem efeito próprio nesta versão.",
                 RuneRarity.Common,
                 "ᚠ");
 
@@ -64,7 +64,7 @@ namespace TicTacToeRoguelike.Content.Runes
                 inventory,
                 "rune.dawn-seal",
                 "Selo da Aurora",
-                "Protótipo de runa abençoada, ainda sem alterar a pontuação.",
+                "Protótipo abençoado sem efeito próprio nesta versão.",
                 RuneRarity.Rare,
                 "ᛉ",
                 RuneAttributeId.Blessed);
@@ -95,7 +95,7 @@ namespace TicTacToeRoguelike.Content.Runes
                 inventory,
                 "rune.grey-mark",
                 "Marca Cinzenta",
-                "Runa de teste do oponente. Ainda não possui efeito ativo.",
+                "Runa de teste do oponente sem efeito próprio nesta versão.",
                 RuneRarity.Common,
                 "ᚦ");
 
