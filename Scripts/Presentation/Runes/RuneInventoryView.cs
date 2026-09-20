@@ -23,7 +23,7 @@ namespace TicTacToeRoguelike.Presentation.Runes
                 throw new ArgumentNullException(
                     nameof(inventory));
 
-            Alignment = AlignmentMode.Begin;
+            Alignment = BoxContainer.AlignmentMode.Begin;
             AddThemeConstantOverride(
                 "separation",
                 8);
