@@ -92,7 +92,9 @@ namespace TicTacToeRoguelike.Domain.Effects.Runes
                             rune.Definition.DisplayName,
                             context.Participant,
                             context.Participant,
-                            Multiplier));
+                            Multiplier,
+                            sourceInstanceId:
+                                rune.InstanceId.Value));
             }
 
             return new EffectOutput(contributions);
