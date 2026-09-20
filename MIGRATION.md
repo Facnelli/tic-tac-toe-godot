@@ -38,6 +38,32 @@ Player e IA usam o mesmo caminho:
 O encontro padrão preserva 3x3, centro Golden, 100 HP por lado, sequência de
 vitória 3, pontuação 2–3 e multiplicador 1,5x.
 
+## Marco 8 — Runas
+
+- `RuneDefinition` separa o tipo de runa de `RuneInstance`.
+- Player e Enemy usam o mesmo `RuneInventoryState`.
+- O limite padrão é de cinco vagas; runas Intangíveis não consomem vaga.
+- O inventário pertence ao Confronto e persiste quando uma nova Rodada começa.
+- A apresentação Godot usa `RuneDefinitionResource` e `RuneInventoryView`.
+
+## Marco 9 — motor de efeitos
+
+`EffectEngine` executa `IGameEffectHandler` por evento em ordem determinística:
+evento, prioridade e `HandlerId` estável. Cada handler recebe um
+`EffectContext` isolado, com cópia do tabuleiro e fotografias das runas, para
+que efeitos não alterem silenciosamente a fonte autoritativa nem dependam da
+ordem de registro.
+
+No evento `ScoreRequested`, as saídas são `ScoreContribution`. O
+`EncounterEngine` pede os efeitos de Player e Enemy antes do cálculo e entrega
+essas contribuições ao `ScorePipeline`. `EffectExecutionReport` conserva
+handlers consultados, ordem, aplicabilidade e fontes produzidas para UI, debug,
+testes e futuros replays.
+
+Neste marco não existe regra específica de runa dentro do motor. O próximo corte
+pode registrar handlers de runas concretas sem editar `EncounterEngine` ou
+`ScoreBreakdown`.
+
 ## Verificação
 
 A suíte EditMode pura do projeto Unity foi migrada para NUnit/.NET e recebeu
