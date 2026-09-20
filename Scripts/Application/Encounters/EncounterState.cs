@@ -3,6 +3,7 @@ using TicTacToeRoguelike.Domain.Actions;
 using TicTacToeRoguelike.Domain.Boards;
 using TicTacToeRoguelike.Domain.Combat;
 using TicTacToeRoguelike.Domain.Reactions;
+using TicTacToeRoguelike.Domain.Runes;
 using TicTacToeRoguelike.Domain.Scoring;
 using TicTacToeRoguelike.Domain.Turns;
 
@@ -32,6 +33,9 @@ namespace TicTacToeRoguelike.Application.Encounters
 
         public CombatantState PlayerState { get; }
         public CombatantState EnemyState { get; }
+
+        public RuneInventoryState PlayerRunes { get; }
+        public RuneInventoryState EnemyRunes { get; }
 
         public EncounterPhase Phase { get; private set; }
 
@@ -83,6 +87,21 @@ namespace TicTacToeRoguelike.Application.Encounters
             CombatantState playerState,
             CombatantState enemyState,
             EncounterRules rules)
+            : this(
+                playerState,
+                enemyState,
+                rules,
+                new RuneInventoryState(ScoreActor.Player),
+                new RuneInventoryState(ScoreActor.Enemy))
+        {
+        }
+
+        internal EncounterState(
+            CombatantState playerState,
+            CombatantState enemyState,
+            EncounterRules rules,
+            RuneInventoryState playerRunes,
+            RuneInventoryState enemyRunes)
         {
             PlayerState = playerState ??
                 throw new ArgumentNullException(nameof(playerState));
@@ -93,6 +112,12 @@ namespace TicTacToeRoguelike.Application.Encounters
             Rules = rules ??
                 throw new ArgumentNullException(nameof(rules));
 
+            PlayerRunes = playerRunes ??
+                throw new ArgumentNullException(nameof(playerRunes));
+
+            EnemyRunes = enemyRunes ??
+                throw new ArgumentNullException(nameof(enemyRunes));
+
             ValidateCombatantOwner(
                 PlayerState,
                 ScoreActor.Player,
@@ -102,6 +127,20 @@ namespace TicTacToeRoguelike.Application.Encounters
                 EnemyState,
                 ScoreActor.Enemy,
                 nameof(enemyState));
+
+            if (PlayerRunes.Owner != ScoreActor.Player)
+            {
+                throw new ArgumentException(
+                    "O inventário do Player precisa pertencer ao Player.",
+                    nameof(playerRunes));
+            }
+
+            if (EnemyRunes.Owner != ScoreActor.Enemy)
+            {
+                throw new ArgumentException(
+                    "O inventário do Enemy precisa pertencer ao Enemy.",
+                    nameof(enemyRunes));
+            }
 
             if (string.Equals(
                     PlayerState.CombatantId,
