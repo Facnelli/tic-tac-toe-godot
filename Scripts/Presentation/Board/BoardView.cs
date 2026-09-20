@@ -24,6 +24,7 @@ namespace TicTacToeRoguelike.Presentation.Board
         private const float MaximumCellSize = 148f;
         private const float GridDrawDuration = 0.72f;
         private const float SequenceDrawDuration = 0.18f;
+        private const double ReactionFlashDuration = 0.30d;
 
         public event Action<BoardCoordinate> CellActivated;
 
@@ -38,6 +39,8 @@ namespace TicTacToeRoguelike.Presentation.Board
         private SequenceMatch _scoringSequence;
         private float _sequenceProgress = 1f;
         private bool _sequenceAnimating;
+
+        private Tween _reactionTween;
 
         public BoardView()
         {
@@ -60,7 +63,8 @@ namespace TicTacToeRoguelike.Presentation.Board
             {
                 _gridProgress = MathF.Min(
                     1f,
-                    _gridProgress + (float)(delta / GridDrawDuration));
+                    _gridProgress +
+                    (float)(delta / GridDrawDuration));
 
                 if (_gridProgress >= 1f)
                     _gridAnimating = false;
@@ -72,7 +76,8 @@ namespace TicTacToeRoguelike.Presentation.Board
             {
                 _sequenceProgress = MathF.Min(
                     1f,
-                    _sequenceProgress + (float)(delta / SequenceDrawDuration));
+                    _sequenceProgress +
+                    (float)(delta / SequenceDrawDuration));
 
                 if (_sequenceProgress >= 1f)
                     _sequenceAnimating = false;
@@ -101,25 +106,36 @@ namespace TicTacToeRoguelike.Presentation.Board
                 DrawScoringSequence();
         }
 
-        public void RenderBoard(BoardState board, bool inputEnabled)
+        public void RenderBoard(
+            BoardState board,
+            bool inputEnabled)
         {
             if (board == null)
                 throw new ArgumentNullException(nameof(board));
 
-            if (!ReferenceEquals(_definition, board.Definition))
+            if (!ReferenceEquals(
+                    _definition,
+                    board.Definition))
+            {
                 Rebuild(board.Definition);
+            }
 
-            foreach (BoardCoordinate coordinate in board.Definition.Cells)
+            foreach (BoardCoordinate coordinate
+                     in board.Definition.Cells)
             {
                 BoardCellView view = _cells[coordinate];
-                view.Render(board.GetCell(coordinate), inputEnabled);
+                view.Render(
+                    board.GetCell(coordinate),
+                    inputEnabled);
             }
         }
 
-        public void ShowScoringSequence(SequenceMatch sequence)
+        public void ShowScoringSequence(
+            SequenceMatch sequence)
         {
             _scoringSequence = sequence ??
-                throw new ArgumentNullException(nameof(sequence));
+                throw new ArgumentNullException(
+                    nameof(sequence));
 
             _sequenceProgress = 0f;
             _sequenceAnimating = true;
@@ -138,31 +154,197 @@ namespace TicTacToeRoguelike.Presentation.Board
                 SetProcess(false);
         }
 
+        /// <summary>
+        /// Mostra rapidamente todas as sequências atuais e depois deixa acesas
+        /// somente as sequências que representam a vantagem líquida da reação.
+        /// Assim, sequências equivalentes dos dois lados visualmente se cancelam.
+        /// </summary>
+        public void ShowReactionTransition(
+            IReadOnlyList<SequenceMatch> playerSequences,
+            IReadOnlyList<SequenceMatch> enemySequences,
+            bool animateTransition)
+        {
+            if (playerSequences == null)
+            {
+                throw new ArgumentNullException(
+                    nameof(playerSequences));
+            }
+
+            if (enemySequences == null)
+            {
+                throw new ArgumentNullException(
+                    nameof(enemySequences));
+            }
+
+            _reactionTween?.Kill();
+            _reactionTween = null;
+
+            List<SequenceMatch> playerCopy =
+                new List<SequenceMatch>(playerSequences);
+            List<SequenceMatch> enemyCopy =
+                new List<SequenceMatch>(enemySequences);
+
+            BuildSurplusSequences(
+                playerCopy,
+                enemyCopy,
+                out List<SequenceMatch> playerSurplus,
+                out List<SequenceMatch> enemySurplus);
+
+            if (!animateTransition)
+            {
+                ApplyVictoryGlow(
+                    playerSurplus,
+                    enemySurplus);
+                return;
+            }
+
+            // Primeiro acende tudo que existe depois da nova jogada.
+            ApplyVictoryGlow(
+                playerCopy,
+                enemyCopy);
+
+            // Em seguida, as sequências equivalentes se anulam e sobra apenas
+            // a vantagem que ainda exige reação do outro lado.
+            _reactionTween = CreateTween();
+            _reactionTween.TweenInterval(
+                ReactionFlashDuration);
+            _reactionTween.TweenCallback(
+                Callable.From(
+                    () => ApplyVictoryGlow(
+                        playerSurplus,
+                        enemySurplus)));
+        }
+
+        public void ClearReactionHighlights()
+        {
+            _reactionTween?.Kill();
+            _reactionTween = null;
+
+            foreach (BoardCellView cell
+                     in _cells.Values)
+            {
+                cell.SetVictoryGlow(false, false);
+            }
+        }
+
+        private static void BuildSurplusSequences(
+            IReadOnlyList<SequenceMatch> playerSequences,
+            IReadOnlyList<SequenceMatch> enemySequences,
+            out List<SequenceMatch> playerSurplus,
+            out List<SequenceMatch> enemySurplus)
+        {
+            playerSurplus = new List<SequenceMatch>();
+            enemySurplus = new List<SequenceMatch>();
+
+            int cancelledCount = Math.Min(
+                playerSequences.Count,
+                enemySequences.Count);
+
+            if (playerSequences.Count >
+                enemySequences.Count)
+            {
+                for (int i = cancelledCount;
+                     i < playerSequences.Count;
+                     i++)
+                {
+                    playerSurplus.Add(
+                        playerSequences[i]);
+                }
+
+                return;
+            }
+
+            if (enemySequences.Count >
+                playerSequences.Count)
+            {
+                for (int i = cancelledCount;
+                     i < enemySequences.Count;
+                     i++)
+                {
+                    enemySurplus.Add(
+                        enemySequences[i]);
+                }
+            }
+        }
+
+        private void ApplyVictoryGlow(
+            IReadOnlyList<SequenceMatch> playerSequences,
+            IReadOnlyList<SequenceMatch> enemySequences)
+        {
+            HashSet<BoardCoordinate> playerCells =
+                CollectSequenceCells(playerSequences);
+
+            HashSet<BoardCoordinate> enemyCells =
+                CollectSequenceCells(enemySequences);
+
+            foreach (KeyValuePair<BoardCoordinate, BoardCellView> pair
+                     in _cells)
+            {
+                pair.Value.SetVictoryGlow(
+                    playerCells.Contains(pair.Key),
+                    enemyCells.Contains(pair.Key));
+            }
+        }
+
+        private static HashSet<BoardCoordinate>
+            CollectSequenceCells(
+                IReadOnlyList<SequenceMatch> sequences)
+        {
+            HashSet<BoardCoordinate> cells =
+                new HashSet<BoardCoordinate>();
+
+            for (int i = 0;
+                 i < sequences.Count;
+                 i++)
+            {
+                SequenceMatch sequence = sequences[i];
+
+                for (int j = 0;
+                     j < sequence.Cells.Count;
+                     j++)
+                {
+                    cells.Add(sequence.Cells[j]);
+                }
+            }
+
+            return cells;
+        }
+
         private void DrawBoardGrid()
         {
-            int verticalLines = Math.Max(0, _definition.Width - 1);
-            int horizontalLines = Math.Max(0, _definition.Height - 1);
-            int totalLines = verticalLines + horizontalLines;
+            int verticalLines =
+                Math.Max(0, _definition.Width - 1);
+            int horizontalLines =
+                Math.Max(0, _definition.Height - 1);
+            int totalLines =
+                verticalLines + horizontalLines;
 
             if (totalLines == 0)
                 return;
 
-            float boardWidth = _definition.Width * _cellSize;
-            float boardHeight = _definition.Height * _cellSize;
-            float globalProgress = _gridProgress * totalLines;
+            float boardWidth =
+                _definition.Width * _cellSize;
+            float boardHeight =
+                _definition.Height * _cellSize;
+            float globalProgress =
+                _gridProgress * totalLines;
             int lineIndex = 0;
 
-            for (int x = 1; x < _definition.Width; x++)
+            for (int x = 1;
+                 x < _definition.Width;
+                 x++)
             {
                 float local = Mathf.Clamp(
                     globalProgress - lineIndex,
                     0f,
                     1f);
+
                 float px = x * _cellSize;
 
                 Vector2 from = x % 2 == 0
                     ? new Vector2(px, boardHeight)
                     : new Vector2(px, 0f);
+
                 Vector2 to = x % 2 == 0
                     ? new Vector2(px, 0f)
                     : new Vector2(px, boardHeight);
@@ -177,17 +359,21 @@ namespace TicTacToeRoguelike.Presentation.Board
                 lineIndex++;
             }
 
-            for (int y = 1; y < _definition.Height; y++)
+            for (int y = 1;
+                 y < _definition.Height;
+                 y++)
             {
                 float local = Mathf.Clamp(
                     globalProgress - lineIndex,
                     0f,
                     1f);
+
                 float py = y * _cellSize;
 
                 Vector2 from = y % 2 == 0
                     ? new Vector2(boardWidth, py)
                     : new Vector2(0f, py);
+
                 Vector2 to = y % 2 == 0
                     ? new Vector2(0f, py)
                     : new Vector2(boardWidth, py);
@@ -208,13 +394,20 @@ namespace TicTacToeRoguelike.Presentation.Board
             if (_scoringSequence.Cells.Count < 2)
                 return;
 
-            Vector2 from = GetCellCenter(_scoringSequence.Start);
-            Vector2 to = GetCellCenter(_scoringSequence.End);
-            Color color = _scoringSequence.Mark == CellMark.X
-                ? PlayerSequence
-                : EnemySequence;
+            Vector2 from =
+                GetCellCenter(_scoringSequence.Start);
+            Vector2 to =
+                GetCellCenter(_scoringSequence.End);
 
-            float width = MathF.Max(4f, _cellSize * 0.055f);
+            Color color =
+                _scoringSequence.Mark == CellMark.X
+                    ? PlayerSequence
+                    : EnemySequence;
+
+            float width =
+                MathF.Max(
+                    4f,
+                    _cellSize * 0.055f);
 
             DrawProgressiveChalkLine(
                 from,
@@ -237,11 +430,14 @@ namespace TicTacToeRoguelike.Presentation.Board
                     continue;
 
                 Vector2 center =
-                    GetCellCenter(_scoringSequence.Cells[i]);
+                    GetCellCenter(
+                        _scoringSequence.Cells[i]);
 
                 DrawArc(
                     center,
-                    MathF.Max(8f, _cellSize * 0.105f),
+                    MathF.Max(
+                        8f,
+                        _cellSize * 0.105f),
                     0f,
                     MathF.Tau * reveal,
                     28,
@@ -250,26 +446,35 @@ namespace TicTacToeRoguelike.Presentation.Board
                         color.G,
                         color.B,
                         0.68f),
-                    MathF.Max(1.5f, width * 0.34f),
+                    MathF.Max(
+                        1.5f,
+                        width * 0.34f),
                     true);
             }
         }
 
-        private Vector2 GetCellCenter(BoardCoordinate coordinate)
+        private Vector2 GetCellCenter(
+            BoardCoordinate coordinate)
         {
             return new Vector2(
                 (coordinate.X + 0.5f) * _cellSize,
                 (coordinate.Y + 0.5f) * _cellSize);
         }
 
-        private void Rebuild(BoardDefinition definition)
+        private void Rebuild(
+            BoardDefinition definition)
         {
+            _reactionTween?.Kill();
+            _reactionTween = null;
+
             foreach (Node child in GetChildren())
                 child.QueueFree();
 
             _cells.Clear();
+
             _definition = definition ??
-                throw new ArgumentNullException(nameof(definition));
+                throw new ArgumentNullException(
+                    nameof(definition));
 
             _scoringSequence = null;
 
@@ -279,30 +484,48 @@ namespace TicTacToeRoguelike.Presentation.Board
                 definition.Width * _cellSize,
                 definition.Height * _cellSize);
 
-            for (int y = 0; y < definition.Height; y++)
+            for (int y = 0;
+                 y < definition.Height;
+                 y++)
             {
-                for (int x = 0; x < definition.Width; x++)
+                for (int x = 0;
+                     x < definition.Width;
+                     x++)
                 {
                     BoardCoordinate coordinate =
                         new BoardCoordinate(x, y);
 
-                    if (!definition.ContainsCell(coordinate))
+                    if (!definition.ContainsCell(
+                            coordinate))
                     {
                         Control gap = new Control
                         {
                             CustomMinimumSize =
-                                new Vector2(_cellSize, _cellSize),
+                                new Vector2(
+                                    _cellSize,
+                                    _cellSize),
                             MouseFilter =
                                 MouseFilterEnum.Ignore
                         };
+
                         AddChild(gap);
                         continue;
                     }
 
-                    BoardCellView cell = new BoardCellView();
-                    cell.Configure(coordinate, _cellSize);
-                    cell.Activated += OnCellActivated;
-                    _cells.Add(coordinate, cell);
+                    BoardCellView cell =
+                        new BoardCellView();
+
+                    cell.Configure(
+                        coordinate,
+                        _cellSize);
+
+                    cell.Activated +=
+                        OnCellActivated;
+
+                    _cells.Add(
+                        coordinate,
+                        cell);
+
                     AddChild(cell);
                 }
             }
@@ -320,7 +543,8 @@ namespace TicTacToeRoguelike.Presentation.Board
                 MaximumBoardSpan / definition.Width;
             float byHeight =
                 MaximumBoardSpan / definition.Height;
-            float size = MathF.Min(byWidth, byHeight);
+            float size =
+                MathF.Min(byWidth, byHeight);
 
             return Mathf.Clamp(
                 size,
@@ -338,7 +562,9 @@ namespace TicTacToeRoguelike.Presentation.Board
             if (progress <= 0f)
                 return;
 
-            Vector2 end = from.Lerp(to, progress);
+            Vector2 end =
+                from.Lerp(to, progress);
+
             Color dust = new Color(
                 color.R,
                 color.G,
@@ -367,7 +593,9 @@ namespace TicTacToeRoguelike.Presentation.Board
                     color.G,
                     color.B,
                     MathF.Min(color.A, 0.34f)),
-                MathF.Max(0.9f, width * 0.38f),
+                MathF.Max(
+                    0.9f,
+                    width * 0.38f),
                 true);
         }
 
