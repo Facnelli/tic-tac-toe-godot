@@ -42,6 +42,8 @@ namespace TicTacToeRoguelike.Content.Runes
 
     public static class StarterRuneCatalog
     {
+        private const string PilotRuneResourcePath =
+            "res://Content/Runes/Definitions/PilotIndependentMultiplier.tres";
         public static RuneInventoryState
             CreatePlayerInventory()
         {
@@ -76,15 +78,7 @@ namespace TicTacToeRoguelike.Content.Runes
                 "ᛟ",
                 RuneAttributeId.Intangible);
 
-            Add(
-                inventory,
-                RuneDefinitionIds
-                    .PilotIndependentMultiplier
-                    .Value,
-                "Runa do Eco",
-                "Passiva: aplica MULT ×1,20 ao seu placar em cada resolução.",
-                RuneRarity.Rare,
-                "ᛞ");
+            AddPilot(inventory);
 
             return inventory;
         }
@@ -114,17 +108,38 @@ namespace TicTacToeRoguelike.Content.Runes
                 "ᚾ",
                 RuneAttributeId.Broken);
 
-            Add(
-                inventory,
-                RuneDefinitionIds
-                    .PilotIndependentMultiplier
-                    .Value,
-                "Runa do Eco",
-                "Passiva: aplica MULT ×1,20 ao seu placar em cada resolução.",
-                RuneRarity.Rare,
-                "ᛞ");
+            AddPilot(inventory);
 
             return inventory;
+        }
+
+        private static void AddPilot(
+            RuneInventoryState inventory)
+        {
+            RuneDefinitionResource resource =
+                ResourceLoader.Load<RuneDefinitionResource>(
+                    PilotRuneResourcePath);
+
+            if (resource == null)
+            {
+                throw new InvalidOperationException(
+                    $"Não foi possível carregar a runa piloto em {PilotRuneResourcePath}.");
+            }
+
+            RuneDefinition definition =
+                resource.ToDomain();
+
+            if (definition.Id !=
+                RuneDefinitionIds
+                    .PilotIndependentMultiplier)
+            {
+                throw new InvalidOperationException(
+                    "O asset da runa piloto possui DefinitionId incorreto.");
+            }
+
+            Add(
+                inventory,
+                definition);
         }
 
         private static void Add(
@@ -144,6 +159,17 @@ namespace TicTacToeRoguelike.Content.Runes
                     rarity,
                     glyph);
 
+            Add(
+                inventory,
+                definition,
+                attributes);
+        }
+
+        private static void Add(
+            RuneInventoryState inventory,
+            RuneDefinition definition,
+            params RuneAttributeId[] attributes)
+        {
             RuneInventoryAddResult result =
                 inventory.TryAdd(
                     RuneInstance.Create(
