@@ -22,6 +22,8 @@ namespace TicTacToeRoguelike.Presentation.Board
         private float _oProgress;
         private bool _animateX;
         private bool _animateO;
+        private bool _playerVictoryGlow;
+        private bool _enemyVictoryGlow;
         private float _cellSize = 148f;
 
         public event Action<BoardCoordinate> Activated;
@@ -39,16 +41,24 @@ namespace TicTacToeRoguelike.Presentation.Board
             AddThemeColorOverride("font_disabled_color", Colors.Transparent);
             AddThemeStyleboxOverride(
                 "normal",
-                CreateCellStyle(new Color(0.025f, 0.028f, 0.031f, 0.20f), Colors.Transparent));
+                CreateCellStyle(
+                    new Color(0.025f, 0.028f, 0.031f, 0.20f),
+                    Colors.Transparent));
             AddThemeStyleboxOverride(
                 "hover",
-                CreateCellStyle(new Color(0.09f, 0.075f, 0.055f, 0.45f), ChalkHover));
+                CreateCellStyle(
+                    new Color(0.09f, 0.075f, 0.055f, 0.45f),
+                    ChalkHover));
             AddThemeStyleboxOverride(
                 "pressed",
-                CreateCellStyle(new Color(0.12f, 0.09f, 0.055f, 0.56f), ChalkHover));
+                CreateCellStyle(
+                    new Color(0.12f, 0.09f, 0.055f, 0.56f),
+                    ChalkHover));
             AddThemeStyleboxOverride(
                 "disabled",
-                CreateCellStyle(new Color(0.018f, 0.021f, 0.024f, 0.18f), Colors.Transparent));
+                CreateCellStyle(
+                    new Color(0.018f, 0.021f, 0.024f, 0.18f),
+                    Colors.Transparent));
             AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
         }
 
@@ -85,6 +95,8 @@ namespace TicTacToeRoguelike.Presentation.Board
 
         public override void _Draw()
         {
+            DrawVictoryGlow();
+
             bool hasX = (_marks & CellMark.X) == CellMark.X;
             bool hasO = (_marks & CellMark.O) == CellMark.O;
 
@@ -103,15 +115,20 @@ namespace TicTacToeRoguelike.Presentation.Board
                 DrawChalkO(center, radius, width, Rose, _oProgress);
         }
 
-        public void Configure(BoardCoordinate coordinate, float cellSize)
+        public void Configure(
+            BoardCoordinate coordinate,
+            float cellSize)
         {
             Coordinate = coordinate;
             _cellSize = cellSize;
             CustomMinimumSize = new Vector2(cellSize, cellSize);
-            TooltipText = $"Casa {coordinate.X + 1}, {coordinate.Y + 1}";
+            TooltipText =
+                $"Casa {coordinate.X + 1}, {coordinate.Y + 1}";
         }
 
-        public void Render(CellState cell, bool inputEnabled)
+        public void Render(
+            CellState cell,
+            bool inputEnabled)
         {
             if (cell == null)
                 throw new ArgumentNullException(nameof(cell));
@@ -194,7 +211,83 @@ namespace TicTacToeRoguelike.Presentation.Board
             QueueRedraw();
         }
 
-        private static StyleBoxFlat CreateCellStyle(Color background, Color border)
+        public void SetVictoryGlow(
+            bool playerGlow,
+            bool enemyGlow)
+        {
+            if (_playerVictoryGlow == playerGlow &&
+                _enemyVictoryGlow == enemyGlow)
+            {
+                return;
+            }
+
+            _playerVictoryGlow = playerGlow;
+            _enemyVictoryGlow = enemyGlow;
+            QueueRedraw();
+        }
+
+        private void DrawVictoryGlow()
+        {
+            if (!_playerVictoryGlow &&
+                !_enemyVictoryGlow)
+            {
+                return;
+            }
+
+            Rect2 inner = new Rect2(
+                new Vector2(3f, 3f),
+                new Vector2(
+                    MathF.Max(0f, Size.X - 6f),
+                    MathF.Max(0f, Size.Y - 6f)));
+
+            if (_playerVictoryGlow)
+            {
+                DrawRect(
+                    inner,
+                    new Color(
+                        Cyan.R,
+                        Cyan.G,
+                        Cyan.B,
+                        _enemyVictoryGlow ? 0.13f : 0.22f),
+                    true);
+
+                DrawRect(
+                    inner,
+                    new Color(Cyan.R, Cyan.G, Cyan.B, 0.88f),
+                    false,
+                    MathF.Max(2f, _cellSize * 0.025f));
+            }
+
+            if (_enemyVictoryGlow)
+            {
+                Rect2 enemyRect = _playerVictoryGlow
+                    ? new Rect2(
+                        new Vector2(8f, 8f),
+                        new Vector2(
+                            MathF.Max(0f, Size.X - 16f),
+                            MathF.Max(0f, Size.Y - 16f)))
+                    : inner;
+
+                DrawRect(
+                    enemyRect,
+                    new Color(
+                        Rose.R,
+                        Rose.G,
+                        Rose.B,
+                        _playerVictoryGlow ? 0.13f : 0.22f),
+                    true);
+
+                DrawRect(
+                    enemyRect,
+                    new Color(Rose.R, Rose.G, Rose.B, 0.88f),
+                    false,
+                    MathF.Max(2f, _cellSize * 0.025f));
+            }
+        }
+
+        private static StyleBoxFlat CreateCellStyle(
+            Color background,
+            Color border)
         {
             return new StyleBoxFlat
             {
@@ -218,19 +311,33 @@ namespace TicTacToeRoguelike.Presentation.Board
             Color color,
             float progress)
         {
-            float first = Mathf.Clamp(progress * 2f, 0f, 1f);
-            float second = Mathf.Clamp(progress * 2f - 1f, 0f, 1f);
+            float first =
+                Mathf.Clamp(progress * 2f, 0f, 1f);
+            float second =
+                Mathf.Clamp(progress * 2f - 1f, 0f, 1f);
 
-            Vector2 a = center + new Vector2(-half, -half);
-            Vector2 b = center + new Vector2(half, half);
-            Vector2 c = center + new Vector2(half, -half);
-            Vector2 d = center + new Vector2(-half, half);
+            Vector2 a =
+                center + new Vector2(-half, -half);
+            Vector2 b =
+                center + new Vector2(half, half);
+            Vector2 c =
+                center + new Vector2(half, -half);
+            Vector2 d =
+                center + new Vector2(-half, half);
 
             if (first > 0f)
-                DrawChalkSegment(a, a.Lerp(b, first), width, color);
+                DrawChalkSegment(
+                    a,
+                    a.Lerp(b, first),
+                    width,
+                    color);
 
             if (second > 0f)
-                DrawChalkSegment(c, c.Lerp(d, second), width, color);
+                DrawChalkSegment(
+                    c,
+                    c.Lerp(d, second),
+                    width,
+                    color);
         }
 
         private void DrawChalkO(
@@ -244,11 +351,34 @@ namespace TicTacToeRoguelike.Presentation.Board
                 return;
 
             float start = -MathF.PI * 0.5f;
-            float end = start + MathF.Tau * Mathf.Clamp(progress, 0f, 1f);
-            Color dust = WithAlpha(color, 0.23f);
+            float end =
+                start +
+                MathF.Tau *
+                Mathf.Clamp(progress, 0f, 1f);
 
-            DrawArc(center, radius, start, end, 72, dust, width + 3f, true);
-            DrawArc(center + new Vector2(0.7f, -0.5f), radius, start, end, 72, color, width, true);
+            Color dust =
+                WithAlpha(color, 0.23f);
+
+            DrawArc(
+                center,
+                radius,
+                start,
+                end,
+                72,
+                dust,
+                width + 3f,
+                true);
+
+            DrawArc(
+                center + new Vector2(0.7f, -0.5f),
+                radius,
+                start,
+                end,
+                72,
+                color,
+                width,
+                true);
+
             DrawArc(
                 center + new Vector2(-0.9f, 0.8f),
                 radius * 0.985f,
@@ -266,13 +396,20 @@ namespace TicTacToeRoguelike.Presentation.Board
             float width,
             Color color)
         {
-            DrawLine(from, to, WithAlpha(color, 0.22f), width + 3f, true);
+            DrawLine(
+                from,
+                to,
+                WithAlpha(color, 0.22f),
+                width + 3f,
+                true);
+
             DrawLine(
                 from + new Vector2(0.8f, -0.6f),
                 to + new Vector2(0.8f, -0.6f),
                 color,
                 width,
                 true);
+
             DrawLine(
                 from + new Vector2(-0.9f, 0.7f),
                 to + new Vector2(-0.9f, 0.7f),
@@ -281,9 +418,15 @@ namespace TicTacToeRoguelike.Presentation.Board
                 true);
         }
 
-        private static Color WithAlpha(Color color, float alpha)
+        private static Color WithAlpha(
+            Color color,
+            float alpha)
         {
-            return new Color(color.R, color.G, color.B, alpha);
+            return new Color(
+                color.R,
+                color.G,
+                color.B,
+                alpha);
         }
 
         private void OnPressed()
