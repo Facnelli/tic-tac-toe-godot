@@ -464,7 +464,7 @@ namespace TicTacToeRoguelike.Domain.Scoring
              * persistente: a implementação deles poderá mudar entre plataformas ou
              * versões do runtime.
              */
-            string sourceId = BuildSequenceSourceId(sequence);
+            string sourceId = GetSequenceSourceId(sequence);
             string displayText = BuildSequenceDisplayText(sequence);
 
             return ScoreContribution.CreateBasePoints(
@@ -476,9 +476,14 @@ namespace TicTacToeRoguelike.Domain.Scoring
                 priority: sequence.Length);
         }
 
-        private static string BuildSequenceSourceId(
+        public static string GetSequenceSourceId(
             SequenceMatch sequence)
         {
+            if (sequence == null)
+            {
+                throw new ArgumentNullException(nameof(sequence));
+            }
+
             StringBuilder builder = new StringBuilder();
 
             builder.Append("sequence:");
