@@ -326,18 +326,32 @@ namespace TicTacToeRoguelike.Presentation.Board
                 center + new Vector2(-half, half);
 
             if (first > 0f)
+            {
+                Vector2 tip = a.Lerp(b, first);
+
                 DrawChalkSegment(
                     a,
-                    a.Lerp(b, first),
+                    tip,
                     width,
                     color);
 
+                if (progress < 0.5f)
+                    DrawChalkTip(tip, width, color);
+            }
+
             if (second > 0f)
+            {
+                Vector2 tip = c.Lerp(d, second);
+
                 DrawChalkSegment(
                     c,
-                    c.Lerp(d, second),
+                    tip,
                     width,
                     color);
+
+                if (progress < 1f)
+                    DrawChalkTip(tip, width, color);
+            }
         }
 
         private void DrawChalkO(
@@ -350,14 +364,16 @@ namespace TicTacToeRoguelike.Presentation.Board
             if (progress <= 0f)
                 return;
 
+            float clamped =
+                Mathf.Clamp(progress, 0f, 1f);
+
             float start = -MathF.PI * 0.5f;
             float end =
                 start +
-                MathF.Tau *
-                Mathf.Clamp(progress, 0f, 1f);
+                MathF.Tau * clamped;
 
             Color dust =
-                WithAlpha(color, 0.23f);
+                WithAlpha(color, 0.18f);
 
             DrawArc(
                 center,
@@ -366,7 +382,7 @@ namespace TicTacToeRoguelike.Presentation.Board
                 end,
                 72,
                 dust,
-                width + 3f,
+                width + 4.2f,
                 true);
 
             DrawArc(
@@ -375,7 +391,7 @@ namespace TicTacToeRoguelike.Presentation.Board
                 start,
                 end,
                 72,
-                color,
+                WithAlpha(color, 0.90f),
                 width,
                 true);
 
@@ -385,9 +401,32 @@ namespace TicTacToeRoguelike.Presentation.Board
                 start,
                 end,
                 72,
-                WithAlpha(color, 0.34f),
+                WithAlpha(color, 0.30f),
                 MathF.Max(1f, width * 0.32f),
                 true);
+
+            DrawChalkArcGrain(
+                center,
+                radius,
+                start,
+                end,
+                width,
+                color);
+
+            if (clamped < 1f)
+            {
+                Vector2 tip =
+                    center +
+                    new Vector2(
+                        MathF.Cos(end),
+                        MathF.Sin(end)) *
+                    radius;
+
+                DrawChalkTip(
+                    tip,
+                    width,
+                    color);
+            }
         }
 
         private void DrawChalkSegment(
@@ -396,26 +435,149 @@ namespace TicTacToeRoguelike.Presentation.Board
             float width,
             Color color)
         {
+            Vector2 delta = to - from;
+            float length = delta.Length();
+
+            if (length <= 0.01f)
+                return;
+
+            Vector2 direction = delta / length;
+            Vector2 normal =
+                new Vector2(-direction.Y, direction.X);
+
             DrawLine(
                 from,
                 to,
-                WithAlpha(color, 0.22f),
-                width + 3f,
+                WithAlpha(color, 0.18f),
+                width + 4f,
                 true);
 
             DrawLine(
-                from + new Vector2(0.8f, -0.6f),
-                to + new Vector2(0.8f, -0.6f),
-                color,
+                from + normal * 0.65f,
+                to + normal * 0.65f,
+                WithAlpha(color, 0.92f),
                 width,
                 true);
 
             DrawLine(
-                from + new Vector2(-0.9f, 0.7f),
-                to + new Vector2(-0.9f, 0.7f),
-                WithAlpha(color, 0.33f),
+                from - normal * 0.95f,
+                to - normal * 0.95f,
+                WithAlpha(color, 0.30f),
                 MathF.Max(1f, width * 0.32f),
                 true);
+
+            int grainCount =
+                Math.Max(5, (int)(length / 8f));
+
+            for (int i = 0;
+                 i < grainCount;
+                 i++)
+            {
+                float t =
+                    (i + 0.4f) / grainCount;
+
+                float phase =
+                    (i * 9.137f) +
+                    (from.X * 0.083f) +
+                    (from.Y * 0.121f);
+
+                float jitter =
+                    MathF.Sin(phase) *
+                    MathF.Max(0.8f, width * 0.85f);
+
+                Vector2 point =
+                    from +
+                    direction * (length * t) +
+                    normal * jitter;
+
+                DrawCircle(
+                    point,
+                    0.45f +
+                    MathF.Abs(MathF.Sin(phase * 1.31f)) *
+                    MathF.Max(0.35f, width * 0.16f),
+                    WithAlpha(
+                        color,
+                        0.10f +
+                        MathF.Abs(MathF.Sin(phase * 0.77f)) *
+                        0.20f));
+            }
+        }
+
+        private void DrawChalkArcGrain(
+            Vector2 center,
+            float radius,
+            float start,
+            float end,
+            float width,
+            Color color)
+        {
+            float sweep = MathF.Max(0f, end - start);
+            int grainCount =
+                Math.Max(
+                    8,
+                    (int)(radius * sweep / 9f));
+
+            for (int i = 0;
+                 i < grainCount;
+                 i++)
+            {
+                float t =
+                    (i + 0.35f) / grainCount;
+
+                float angle =
+                    start + sweep * t;
+
+                float phase =
+                    (i * 7.91f) +
+                    (center.X * 0.067f) +
+                    (center.Y * 0.103f);
+
+                float radialJitter =
+                    MathF.Sin(phase) *
+                    MathF.Max(0.7f, width * 0.72f);
+
+                Vector2 direction =
+                    new Vector2(
+                        MathF.Cos(angle),
+                        MathF.Sin(angle));
+
+                Vector2 point =
+                    center +
+                    direction *
+                    (radius + radialJitter);
+
+                DrawCircle(
+                    point,
+                    0.40f +
+                    MathF.Abs(MathF.Sin(phase * 1.41f)) *
+                    MathF.Max(0.35f, width * 0.15f),
+                    WithAlpha(
+                        color,
+                        0.10f +
+                        MathF.Abs(MathF.Sin(phase * 0.89f)) *
+                        0.20f));
+            }
+        }
+
+        private void DrawChalkTip(
+            Vector2 position,
+            float width,
+            Color color)
+        {
+            DrawCircle(
+                position,
+                width * 0.95f,
+                WithAlpha(color, 0.11f));
+
+            DrawCircle(
+                position,
+                MathF.Max(1.7f, width * 0.48f),
+                WithAlpha(color, 0.82f));
+
+            DrawCircle(
+                position + new Vector2(1.4f, -0.8f),
+                MathF.Max(0.8f, width * 0.18f),
+                WithAlpha(color, 0.46f));
         }
 
         private static Color WithAlpha(
