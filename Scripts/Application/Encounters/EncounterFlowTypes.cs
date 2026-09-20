@@ -1,6 +1,7 @@
 ﻿using System;
 using TicTacToeRoguelike.Domain.Boards;
 using TicTacToeRoguelike.Domain.Combat;
+using TicTacToeRoguelike.Domain.Effects;
 using TicTacToeRoguelike.Domain.Reactions;
 using TicTacToeRoguelike.Domain.Scoring;
 
@@ -371,6 +372,8 @@ namespace TicTacToeRoguelike.Application.Encounters
         public RoundResult Round { get; }
         public ScorePipelineResult PlayerScore { get; }
         public ScorePipelineResult EnemyScore { get; }
+        public EffectExecutionReport PlayerEffects { get; }
+        public EffectExecutionReport EnemyEffects { get; }
         public ClashReport Clash { get; }
         public DamageReport Damage { get; }
 
@@ -393,6 +396,44 @@ namespace TicTacToeRoguelike.Application.Encounters
             CombatantSnapshot playerAfter,
             CombatantSnapshot enemyBefore,
             CombatantSnapshot enemyAfter)
+            : this(
+                round,
+                playerScore,
+                enemyScore,
+                clash,
+                damage,
+                playerBefore,
+                playerAfter,
+                enemyBefore,
+                enemyAfter,
+                EffectExecutionReport.CreateEmpty(
+                    EffectEventKind.ScoreRequested,
+                    ScoreActor.Player,
+                    round?.Board ??
+                        throw new ArgumentNullException(nameof(round)),
+                    round.RoundNumber,
+                    round.Winner == ScoreActor.Player),
+                EffectExecutionReport.CreateEmpty(
+                    EffectEventKind.ScoreRequested,
+                    ScoreActor.Enemy,
+                    round.Board,
+                    round.RoundNumber,
+                    round.Winner == ScoreActor.Enemy))
+        {
+        }
+
+        public RoundResolution(
+            RoundResult round,
+            ScorePipelineResult playerScore,
+            ScorePipelineResult enemyScore,
+            ClashReport clash,
+            DamageReport damage,
+            CombatantSnapshot playerBefore,
+            CombatantSnapshot playerAfter,
+            CombatantSnapshot enemyBefore,
+            CombatantSnapshot enemyAfter,
+            EffectExecutionReport playerEffects,
+            EffectExecutionReport enemyEffects)
         {
             Round = round ??
                 throw new ArgumentNullException(nameof(round));
@@ -402,6 +443,12 @@ namespace TicTacToeRoguelike.Application.Encounters
 
             EnemyScore = enemyScore ??
                 throw new ArgumentNullException(nameof(enemyScore));
+
+            PlayerEffects = playerEffects ??
+                throw new ArgumentNullException(nameof(playerEffects));
+
+            EnemyEffects = enemyEffects ??
+                throw new ArgumentNullException(nameof(enemyEffects));
 
             Clash = clash ??
                 throw new ArgumentNullException(nameof(clash));
@@ -438,6 +485,22 @@ namespace TicTacToeRoguelike.Application.Encounters
             {
                 throw new ArgumentException(
                     "A Rodada e os placares precisam pertencer à mesma versão do tabuleiro.");
+            }
+
+            if (PlayerEffects.Participant != ScoreActor.Player ||
+                EnemyEffects.Participant != ScoreActor.Enemy ||
+                PlayerEffects.EventKind != EffectEventKind.ScoreRequested ||
+                EnemyEffects.EventKind != EffectEventKind.ScoreRequested)
+            {
+                throw new ArgumentException(
+                    "Os relatórios de efeitos precisam representar a pontuação dos lados corretos.");
+            }
+
+            if (PlayerEffects.BoardVersion != Round.BoardVersion ||
+                EnemyEffects.BoardVersion != Round.BoardVersion)
+            {
+                throw new ArgumentException(
+                    "Os efeitos e a Rodada precisam pertencer à mesma versão do tabuleiro.");
             }
 
             if (!ReferenceEquals(
