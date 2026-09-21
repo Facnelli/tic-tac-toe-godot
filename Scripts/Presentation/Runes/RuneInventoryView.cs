@@ -14,22 +14,32 @@ namespace TicTacToeRoguelike.Presentation.Runes
         private static readonly Color EmptyStone =
             new Color(0.035f, 0.040f, 0.044f, 0.78f);
 
+        private const float StoneSize = 54f;
+        private const float SlotHeight = 64f;
+        private const float RestYOffset = 8f;
+
         private readonly RuneInventoryState _inventory;
-        private readonly Dictionary<string, Control>
+        private readonly bool _allowActivation;
+        private readonly Dictionary<string, RuneStoneVisual>
             _stonesByInstanceId =
-                new Dictionary<string, Control>(
+                new Dictionary<string, RuneStoneVisual>(
                     StringComparer.Ordinal);
         private readonly Dictionary<string, Tween>
             _pulseTweens =
                 new Dictionary<string, Tween>(
                     StringComparer.Ordinal);
 
+        public event Action<RuneInstanceId> RuneActivated;
+
         public RuneInventoryView(
-            RuneInventoryState inventory)
+            RuneInventoryState inventory,
+            bool allowActivation = false)
         {
             _inventory = inventory ??
                 throw new ArgumentNullException(
                     nameof(inventory));
+
+            _allowActivation = allowActivation;
 
             Alignment = BoxContainer.AlignmentMode.Begin;
             AddThemeConstantOverride(
@@ -65,14 +75,14 @@ namespace TicTacToeRoguelike.Presentation.Runes
                 if (rune.IsIntangible)
                     continue;
 
-                Control stone =
+                RuneStoneVisual visual =
                     CreateRuneStone(rune);
 
                 _stonesByInstanceId[
                     rune.InstanceId.Value] =
-                    stone;
+                    visual;
 
-                AddChild(stone);
+                AddChild(visual.Slot);
                 normalShown++;
             }
 
@@ -93,14 +103,61 @@ namespace TicTacToeRoguelike.Presentation.Runes
                 if (!rune.IsIntangible)
                     continue;
 
-                Control stone =
+                RuneStoneVisual visual =
                     CreateRuneStone(rune);
 
                 _stonesByInstanceId[
                     rune.InstanceId.Value] =
-                    stone;
+                    visual;
 
-                AddChild(stone);
+                AddChild(visual.Slot);
+            }
+        }
+
+        /// <summary>
+        /// Atualiza quais pedras podem iniciar um targeting e qual está armada.
+        /// Runas passivas continuam visíveis e com tooltip, mas não entram no modo
+        /// especial ao clique.
+        /// </summary>
+        public void SetTargetingState(
+            IReadOnlyList<RuneInstanceId> selectableSources,
+            RuneInstanceId? selectedSource)
+        {
+            if (selectableSources == null)
+            {
+                throw new ArgumentNullException(
+                    nameof(selectableSources));
+            }
+
+            HashSet<string> selectable =
+                new HashSet<string>(
+                    StringComparer.Ordinal);
+
+            for (int i = 0;
+                 i < selectableSources.Count;
+                 i++)
+            {
+                selectable.Add(
+                    selectableSources[i].Value);
+            }
+
+            foreach (KeyValuePair<string, RuneStoneVisual> pair
+                     in _stonesByInstanceId)
+            {
+                RuneStoneVisual visual =
+                    pair.Value;
+
+                visual.Selectable =
+                    _allowActivation &&
+                    selectable.Contains(pair.Key);
+
+                visual.Selected =
+                    visual.Selectable &&
+                    selectedSource.HasValue &&
+                    selectedSource.Value.Value ==
+                    pair.Key;
+
+                ApplyInteractionVisual(visual);
             }
         }
 
@@ -115,7 +172,7 @@ namespace TicTacToeRoguelike.Presentation.Runes
 
             if (!_stonesByInstanceId.TryGetValue(
                     sourceInstanceId,
-                    out Control stone))
+                    out RuneStoneVisual visual))
             {
                 return false;
             }
@@ -127,9 +184,18 @@ namespace TicTacToeRoguelike.Presentation.Runes
                 previous?.Kill();
             }
 
+            Control stone =
+                visual.Stone;
+
             stone.PivotOffset =
                 stone.Size * 0.5f;
-            stone.Scale = Vector2.One;
+
+            Vector2 restingScale =
+                visual.Selected
+                    ? new Vector2(1.06f, 1.06f)
+                    : Vector2.One;
+
+            stone.Scale = restingScale;
 
             Tween tween = CreateTween();
 
@@ -146,7 +212,7 @@ namespace TicTacToeRoguelike.Presentation.Runes
             tween.TweenProperty(
                     stone,
                     "scale",
-                    Vector2.One,
+                    restingScale,
                     0.18d)
                 .SetTrans(
                     Tween.TransitionType.Quad)
@@ -164,14 +230,35 @@ namespace TicTacToeRoguelike.Presentation.Runes
             return true;
         }
 
-        private static Control CreateRuneStone(
+        private RuneStoneVisual CreateRuneStone(
             RuneInstance rune)
         {
+            Control slot =
+                new Control
+                {
+                    CustomMinimumSize =
+                        new Vector2(
+                            StoneSize,
+                            SlotHeight),
+                    MouseFilter =
+                        MouseFilterEnum.Ignore
+                };
+
             PanelContainer stone =
                 new PanelContainer
                 {
                     CustomMinimumSize =
-                        new Vector2(54f, 54f),
+                        new Vector2(
+                            StoneSize,
+                            StoneSize),
+                    Size =
+                        new Vector2(
+                            StoneSize,
+                            StoneSize),
+                    Position =
+                        new Vector2(
+                            0f,
+                            RestYOffset),
                     MouseFilter =
                         MouseFilterEnum.Stop,
                     TooltipText =
@@ -234,16 +321,121 @@ namespace TicTacToeRoguelike.Presentation.Runes
                     rune.Definition.Rarity));
 
             stone.AddChild(glyph);
-            return stone;
+            slot.AddChild(stone);
+
+            RuneStoneVisual visual =
+                new RuneStoneVisual(
+                    rune,
+                    slot,
+                    stone,
+                    style);
+
+            if (_allowActivation)
+            {
+                stone.GuiInput +=
+                    inputEvent =>
+                        OnRuneGuiInput(
+                            visual,
+                            inputEvent);
+            }
+
+            ApplyInteractionVisual(visual);
+            return visual;
+        }
+
+        private void OnRuneGuiInput(
+            RuneStoneVisual visual,
+            InputEvent inputEvent)
+        {
+            if (!_allowActivation ||
+                !visual.Selectable ||
+                !(inputEvent is InputEventMouseButton mouse) ||
+                mouse.ButtonIndex != MouseButton.Left ||
+                !mouse.Pressed)
+            {
+                return;
+            }
+
+            AcceptEvent();
+            RuneActivated?.Invoke(
+                visual.Rune.InstanceId);
+        }
+
+        private static void ApplyInteractionVisual(
+            RuneStoneVisual visual)
+        {
+            visual.Stone.Position =
+                new Vector2(
+                    0f,
+                    visual.Selected
+                        ? 0f
+                        : RestYOffset);
+
+            visual.Stone.Scale =
+                visual.Selected
+                    ? new Vector2(1.06f, 1.06f)
+                    : Vector2.One;
+
+            visual.Stone.PivotOffset =
+                new Vector2(
+                    StoneSize * 0.5f,
+                    StoneSize * 0.5f);
+
+            visual.Stone.MouseDefaultCursorShape =
+                visual.Selectable
+                    ? CursorShape.PointingHand
+                    : CursorShape.Arrow;
+
+            int borderWidth =
+                visual.Selected
+                    ? 3
+                    : visual.Rune.IsIntangible
+                        ? 1
+                        : 2;
+
+            visual.Style.BorderWidthLeft = borderWidth;
+            visual.Style.BorderWidthTop = borderWidth;
+            visual.Style.BorderWidthRight = borderWidth;
+            visual.Style.BorderWidthBottom = borderWidth;
+
+            visual.Style.BgColor =
+                visual.Selected
+                    ? new Color(
+                        0.14f,
+                        0.13f,
+                        0.11f,
+                        1f)
+                    : Stone;
         }
 
         private static Control CreateEmptySlot()
         {
+            Control wrapper =
+                new Control
+                {
+                    CustomMinimumSize =
+                        new Vector2(
+                            StoneSize,
+                            SlotHeight),
+                    MouseFilter =
+                        MouseFilterEnum.Ignore
+                };
+
             PanelContainer slot =
                 new PanelContainer
                 {
                     CustomMinimumSize =
-                        new Vector2(54f, 54f),
+                        new Vector2(
+                            StoneSize,
+                            StoneSize),
+                    Size =
+                        new Vector2(
+                            StoneSize,
+                            StoneSize),
+                    Position =
+                        new Vector2(
+                            0f,
+                            RestYOffset),
                     MouseFilter =
                         MouseFilterEnum.Ignore
                 };
@@ -272,7 +464,8 @@ namespace TicTacToeRoguelike.Presentation.Runes
                 "panel",
                 style);
 
-            return slot;
+            wrapper.AddChild(slot);
+            return wrapper;
         }
 
         private static string BuildTooltip(
@@ -372,6 +565,28 @@ namespace TicTacToeRoguelike.Presentation.Runes
                         0.70f,
                         0.64f,
                         1f);
+            }
+        }
+
+        private sealed class RuneStoneVisual
+        {
+            public RuneInstance Rune { get; }
+            public Control Slot { get; }
+            public PanelContainer Stone { get; }
+            public StyleBoxFlat Style { get; }
+            public bool Selectable { get; set; }
+            public bool Selected { get; set; }
+
+            public RuneStoneVisual(
+                RuneInstance rune,
+                Control slot,
+                PanelContainer stone,
+                StyleBoxFlat style)
+            {
+                Rune = rune;
+                Slot = slot;
+                Stone = stone;
+                Style = style;
             }
         }
     }
