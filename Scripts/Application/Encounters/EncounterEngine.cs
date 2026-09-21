@@ -566,7 +566,9 @@ namespace TicTacToeRoguelike.Application.Encounters
                 var skipped = State.OpenTurn(completion.Actor == ScoreActor.Player ? ScoreActor.Enemy : ScoreActor.Player, 1);
                 skipped.Skip(State.Board.Version);
                 LastSkippedTurn = TurnCompletion.CreateFrom(skipped);
-                State.BeginTurnResolution(LastSkippedTurn);
+                // O turno pulado é um fato de agendamento, não uma tentativa de
+                // reação. Não iniciamos uma resolução artificial aqui porque ela
+                // apagaria a ReactionDecision já calculada para o turno real.
             }
             OpenTurn(nextTurn.Actor, nextTurn.ActionBudget);
         }
