@@ -58,6 +58,53 @@ namespace TicTacToeRoguelike.Tests.Effects
             Assert.That(effects.ActionUsage.Used(actor, source.InstanceId), Is.EqualTo(1));
             Assert.That(fixture.Engine.State.Phase, Is.EqualTo(EncounterPhase.WaitingForAction));
             Assert.That(fixture.Engine.State.CurrentActor, Is.Not.EqualTo(actor));
+
+            ExecuteCurrentMove(fixture.Engine, target);
+
+            Assert.That(fixture.Engine.State.Phase, Is.EqualTo(EncounterPhase.RoundResolved));
+            Assert.That(
+                fixture.Engine.State.LastReactionDecision.Kind,
+                Is.EqualTo(ReactionDecisionKind.DrawNoActions));
+            Assert.That(effects.ActionUsage.Used(actor, source.InstanceId), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void ClearCell_ReevaluatesReactionAfterRemovingASequence()
+        {
+            var playerRunes = new RuneInventoryState(ScoreActor.Player);
+            var enemyRunes = new RuneInventoryState(ScoreActor.Enemy);
+            RuneInstance source = AddRune(
+                enemyRunes,
+                ClearCellRuneActions.PilotDefinitionId,
+                "clear:enemy:reaction");
+
+            var effects = new EncounterEffects(seed: 111);
+            Fixture fixture = CreateFixture(playerRunes, enemyRunes, effects);
+            BoardState board = CreateBoard(
+                3,
+                3,
+                Cell(0, 0, CellMark.X),
+                Cell(1, 0, CellMark.X),
+                Cell(2, 0, CellMark.X));
+
+            fixture.Engine.StartEncounter(board, EncounterSide.Enemy);
+
+            ClearCellAction clear = fixture.Catalog.GetAvailableActions(
+                    board,
+                    fixture.Engine.State.CurrentTurn,
+                    GameActionOrigin.AgentPolicy)
+                .OfType<ClearCellAction>()
+                .Single(action =>
+                    action.SourceInstanceId == source.InstanceId &&
+                    action.Target == new BoardCoordinate(1, 0));
+
+            fixture.Engine.ExecuteAction(clear);
+
+            Assert.That(
+                fixture.Engine.State.LastReactionDecision.Kind,
+                Is.EqualTo(ReactionDecisionKind.ReactionResolvedByTie));
+            Assert.That(fixture.Engine.State.ReactionState.IsTied, Is.True);
+            Assert.That(fixture.Engine.State.CurrentActor, Is.EqualTo(ScoreActor.Player));
         }
 
         [Test]
