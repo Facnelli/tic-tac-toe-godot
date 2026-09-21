@@ -58,7 +58,7 @@ namespace TicTacToeRoguelike.Content.Runes
                 inventory,
                 ClearCellRuneActions.PilotDefinitionId,
                 "Pedra da Purificação",
-                "Limpa os símbolos de uma casa. Custa uma ação; uma vez por rodada.",
+                "Selecione a runa e depois clique numa casa ocupada para apagar seus símbolos. Custa uma ação; uma vez por rodada.",
                 RuneRarity.Common,
                 "ᚠ");
 
@@ -97,7 +97,7 @@ namespace TicTacToeRoguelike.Content.Runes
                 inventory,
                 ClearCellRuneActions.PilotDefinitionId,
                 "Pedra da Purificação",
-                "Limpa os símbolos de uma casa. Custa uma ação; uma vez por rodada.",
+                "Selecione a runa e depois clique numa casa ocupada para apagar seus símbolos. Custa uma ação; uma vez por rodada.",
                 RuneRarity.Common,
                 "ᚦ");
 

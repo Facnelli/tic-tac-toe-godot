@@ -61,7 +61,8 @@ namespace TicTacToeRoguelike.Presentation.Encounters
         private IAgentPolicy _enemyPolicy;
         private BoardView _boardView;
         private CombatReportAnimator _combatAnimator;
-        private BoardActionSelector _actionSelector;
+        private readonly RuneTargetingSelection _runeTargeting =
+            new RuneTargetingSelection();
         private RuneInventoryView _playerRuneView;
         private RuneInventoryView _enemyRuneView;
 
@@ -637,6 +638,7 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                 CreateRunePanel(
                     "RUNAS DO OPONENTE",
                     _engine.State.EnemyRunes,
+                    false,
                     out _enemyRuneView);
             Place(opponentRunes, 0.055f, 0.050f, 0.340f, 0.205f);
             layout.AddChild(opponentRunes);
@@ -713,7 +715,10 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                 CreateRunePanel(
                     "RUNAS DO JOGADOR",
                     _engine.State.PlayerRunes,
+                    true,
                     out _playerRuneView);
+            _playerRuneView.RuneActivated +=
+                OnPlayerRuneActivated;
             Place(playerRunes, 0.055f, 0.745f, 0.430f, 0.930f);
             layout.AddChild(playerRunes);
 
@@ -743,6 +748,7 @@ namespace TicTacToeRoguelike.Presentation.Encounters
         private PanelContainer CreateRunePanel(
             string title,
             RuneInventoryState inventory,
+            bool allowActivation,
             out RuneInventoryView inventoryView)
         {
             PanelContainer panel = CreateFramedPanel();
@@ -757,7 +763,9 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             column.AddChild(CreateDivider());
 
             inventoryView =
-                new RuneInventoryView(inventory)
+                new RuneInventoryView(
+                    inventory,
+                    allowActivation)
                 {
                     SizeFlagsHorizontal =
                         SizeFlags.ExpandFill,
@@ -855,8 +863,6 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             StyleButton(_nextRoundButton);
             _nextRoundButton.Pressed += OnNextRoundPressed;
             column.AddChild(_nextRoundButton);
-            _actionSelector = new BoardActionSelector();
-            column.AddChild(_actionSelector);
             return panel;
         }
 
@@ -1203,6 +1209,8 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             RuneInventoryState enemyRunes =
                 StarterRuneCatalog.CreateEnemyInventory();
 
+            _runeTargeting.Reset();
+
             var effects = new EncounterEffects(seed: 11);
             var clear = new ClearCellRuneActions(playerRunes, enemyRunes, effects.ActionUsage);
             _catalog = new ActionCatalog(
@@ -1284,6 +1292,50 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                 new[] { goldenCenter });
         }
 
+        private void OnPlayerRuneActivated(
+            RuneInstanceId sourceInstanceId)
+        {
+            if (_engine == null ||
+                !_engine.State.AcceptsActions ||
+                _engine.State.CurrentActor !=
+                ScoreActor.Player ||
+                _scoreAnimationActive ||
+                _roundEraseActive)
+            {
+                return;
+            }
+
+            IReadOnlyList<GameAction> actions =
+                _catalog.GetAvailableActions(
+                    _engine.State.Board,
+                    _engine.State.CurrentTurn,
+                    GameActionOrigin.PlayerInput);
+
+            if (!_runeTargeting.Toggle(
+                    sourceInstanceId,
+                    actions))
+            {
+                return;
+            }
+
+            RefreshPlayerRuneTargeting(
+                actions);
+        }
+
+        private void RefreshPlayerRuneTargeting(
+            IReadOnlyList<GameAction> actions)
+        {
+            if (actions == null)
+                throw new ArgumentNullException(nameof(actions));
+
+            _runeTargeting.Refresh(actions);
+
+            _playerRuneView?.SetTargetingState(
+                _runeTargeting.GetSelectableSources(
+                    actions),
+                _runeTargeting.SelectedSource);
+        }
+
         private void OnCellActivated(
             BoardCoordinate coordinate)
         {
@@ -1300,13 +1352,20 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                     _engine.State.CurrentTurn,
                     GameActionOrigin.PlayerInput);
 
-            GameAction selected = _actionSelector.SelectTarget(actions, coordinate);
+            GameAction selected =
+                _runeTargeting.SelectTarget(
+                    actions,
+                    coordinate);
 
             if (selected == null)
                 return;
 
-            _engine.ExecuteAction(selected);
-            _actionSelector.ResetSelection();
+            ActionResult result =
+                _engine.ExecuteAction(selected);
+
+            if (result.WasApplied)
+                _runeTargeting.Reset();
+
             AfterAuthoritativeAction();
         }
 
@@ -1455,9 +1514,17 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             bool playerCanClick =
                 state.AcceptsActions && !_scoreAnimationActive && !_roundEraseActive &&
                 state.CurrentActor == ScoreActor.Player;
-            _actionSelector?.Refresh(playerCanClick
-                ? _catalog.GetAvailableActions(state.Board, state.CurrentTurn, GameActionOrigin.PlayerInput)
-                : System.Array.Empty<GameAction>());
+
+            IReadOnlyList<GameAction> playerActions =
+                playerCanClick
+                    ? _catalog.GetAvailableActions(
+                        state.Board,
+                        state.CurrentTurn,
+                        GameActionOrigin.PlayerInput)
+                    : System.Array.Empty<GameAction>();
+
+            RefreshPlayerRuneTargeting(
+                playerActions);
 
             if (state.Board != null)
             {

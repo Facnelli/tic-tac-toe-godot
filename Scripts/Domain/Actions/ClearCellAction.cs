@@ -5,7 +5,7 @@ using TicTacToeRoguelike.Domain.Scoring;
 
 namespace TicTacToeRoguelike.Domain.Actions
 {
-    public sealed class ClearCellAction : GameAction<BoardCoordinate>
+    public sealed class ClearCellAction : GameAction<BoardCoordinate>, IRuneSourcedAction, IBoardTargetedAction
     {
         public RuneInstanceId SourceInstanceId { get; }
         public ClearCellAction(ScoreActor actor, GameActionOrigin origin, long turnId, long boardVersion, BoardCoordinate target, RuneInstanceId source)
