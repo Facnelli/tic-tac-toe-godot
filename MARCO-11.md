@@ -21,6 +21,21 @@ paralelos de gameplay.
 - Player e Enemy recebem a mesma definição de ação, provider, handler, validação e
   execução. A IA escolhe entre as ações legais pelo mesmo catálogo.
 
+### Targeting das ações de runa
+
+A interação humana não usa mais um seletor separado de categoria de ação.
+Sem runa selecionada, clicar no tabuleiro sempre tenta uma `PlaceMarkAction`.
+Para usar uma ação especial de tabuleiro, o jogador precisa clicar primeiro na
+runa que a habilita. A pedra sobe visualmente para indicar o modo armado e o
+próximo clique procura somente ações originadas daquela instância. Clicar de novo
+na mesma runa cancela o modo; um alvo inválido não cancela a seleção.
+
+Esse comportamento é genérico: `IRuneSourcedAction` identifica a instância que
+originou a ação e `IBoardTargetedAction` identifica ações resolvidas por clique
+em uma casa. Assim, futuras runas de inverter símbolo, bloquear casa, apagar
+linha ou outras mutações de tabuleiro podem reutilizar o mesmo fluxo sem adicionar
+botões específicos na arena ou condicionais por nome de runa no controlador.
+
 ## Turnos e reação
 
 `EncounterEffects` produz `TurnPlanModifier` tipado para:
