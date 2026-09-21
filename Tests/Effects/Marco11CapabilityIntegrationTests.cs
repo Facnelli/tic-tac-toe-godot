@@ -347,6 +347,33 @@ namespace TicTacToeRoguelike.Tests.Effects
             Assert.That(effects.RuneReports[1].Removal.Reason, Is.EqualTo(RuneRemovalReason.Broken));
         }
 
+        [TestCase(RuneRemovalReason.Discarded)]
+        [TestCase(RuneRemovalReason.Replaced)]
+        [TestCase(RuneRemovalReason.Broken)]
+        public void RuneRemovalReport_DistinguishesRemovalReasons(RuneRemovalReason reason)
+        {
+            var inventory = new RuneInventoryState(ScoreActor.Player);
+            RuneInstance target = AddRune(inventory, "test.removal-target", $"removal:{reason}");
+            var evt = new EffectEvent($"event:removal:{reason}", EffectTrigger.RuneChanged);
+            var source = new EffectSource(
+                ScoreActor.Player,
+                "test.removal-source",
+                "removal-source:player",
+                "handler.removal");
+            var effect = new SourcedEffect<RuneCommand>(
+                evt,
+                source,
+                new RemoveRuneCommand(ScoreActor.Player, target.InstanceId, reason));
+
+            RuneCommandReport report = inventory.Apply(effect);
+
+            Assert.That(report.Status, Is.EqualTo(RuneCommandStatus.Applied));
+            Assert.That(report.Removal, Is.Not.Null);
+            Assert.That(report.Removal.Reason, Is.EqualTo(reason));
+            Assert.That(report.Command, Is.SameAs(effect.Output));
+            Assert.That(inventory.Contains(target.InstanceId), Is.False);
+        }
+
         [Test]
         public void CapabilityPipeline_RepeatedEventIsExecutedOnlyOnce()
         {
