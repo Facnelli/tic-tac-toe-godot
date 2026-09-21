@@ -11,12 +11,14 @@ namespace TicTacToeRoguelike.Application.Effects
     /// </summary>
     public static class DefaultEffectEngineFactory
     {
-        public static EffectEngine Create()
+        public static EffectEngine Create(
+            decimal pilotIndependentMultiplier)
         {
             return new EffectEngine(
                 new IGameEffectHandler[]
                 {
-                    new PilotIndependentMultiplierRuneHandler()
+                    new PilotIndependentMultiplierRuneHandler(
+                        pilotIndependentMultiplier)
                 });
         }
     }

@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="RuneDefinitionResource" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="IndependentMultiplierRuneDefinitionResource" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://Scripts/Content/Runes/RuneDefinitionResource.cs" id="1_rune"]
+[ext_resource type="Script" path="res://Scripts/Content/Runes/IndependentMultiplierRuneDefinitionResource.cs" id="1_rune"]
 
 [resource]
 script = ExtResource("1_rune")
@@ -9,3 +9,4 @@ DisplayName = "Runa do Eco"
 Description = "Passiva: aplica MULT ×1,20 ao seu placar em cada resolução."
 Rarity = 1
 Glyph = "ᛞ"
+IndependentMultiplier = 1.2

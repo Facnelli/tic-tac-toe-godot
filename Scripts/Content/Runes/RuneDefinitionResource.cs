@@ -7,7 +7,7 @@ using TicTacToeRoguelike.Domain.Runes;
 namespace TicTacToeRoguelike.Content.Runes
 {
     [GlobalClass]
-    public sealed partial class RuneDefinitionResource :
+    public partial class RuneDefinitionResource :
         Resource
     {
         [Export]
@@ -44,10 +44,9 @@ namespace TicTacToeRoguelike.Content.Runes
 
     public static class StarterRuneCatalog
     {
-        private const string PilotRuneResourcePath =
-            "res://Content/Runes/Definitions/PilotIndependentMultiplier.tres";
         public static RuneInventoryState
-            CreatePlayerInventory()
+            CreatePlayerInventory(
+                PilotIndependentMultiplierRuneContent pilotContent)
         {
             RuneInventoryState inventory =
                 new RuneInventoryState(
@@ -80,13 +79,14 @@ namespace TicTacToeRoguelike.Content.Runes
                 "ᛟ",
                 RuneAttributeId.Intangible);
 
-            AddPilot(inventory);
+            AddPilot(inventory, pilotContent);
 
             return inventory;
         }
 
         public static RuneInventoryState
-            CreateEnemyInventory()
+            CreateEnemyInventory(
+                PilotIndependentMultiplierRuneContent pilotContent)
         {
             RuneInventoryState inventory =
                 new RuneInventoryState(
@@ -110,38 +110,21 @@ namespace TicTacToeRoguelike.Content.Runes
                 "ᚾ",
                 RuneAttributeId.Broken);
 
-            AddPilot(inventory);
+            AddPilot(inventory, pilotContent);
 
             return inventory;
         }
 
         private static void AddPilot(
-            RuneInventoryState inventory)
+            RuneInventoryState inventory,
+            PilotIndependentMultiplierRuneContent pilotContent)
         {
-            RuneDefinitionResource resource =
-                ResourceLoader.Load<RuneDefinitionResource>(
-                    PilotRuneResourcePath);
-
-            if (resource == null)
-            {
-                throw new InvalidOperationException(
-                    $"Não foi possível carregar a runa piloto em {PilotRuneResourcePath}.");
-            }
-
-            RuneDefinition definition =
-                resource.ToDomain();
-
-            if (definition.Id !=
-                RuneDefinitionIds
-                    .PilotIndependentMultiplier)
-            {
-                throw new InvalidOperationException(
-                    "O asset da runa piloto possui DefinitionId incorreto.");
-            }
+            if (pilotContent == null)
+                throw new ArgumentNullException(nameof(pilotContent));
 
             Add(
                 inventory,
-                definition);
+                pilotContent.Definition);
         }
 
         private static void Add(

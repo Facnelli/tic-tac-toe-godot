@@ -26,7 +26,7 @@ namespace TicTacToeRoguelike.Tests.Effects
                     new[] { rune });
 
             PilotIndependentMultiplierRuneHandler handler =
-                new PilotIndependentMultiplierRuneHandler();
+                new PilotIndependentMultiplierRuneHandler(1.35m);
 
             Assert.That(
                 handler.CanHandle(context),
@@ -49,7 +49,7 @@ namespace TicTacToeRoguelike.Tests.Effects
 
             Assert.That(
                 contribution.Amount,
-                Is.EqualTo(1.20m));
+                Is.EqualTo(1.35m));
 
             Assert.That(
                 contribution.SourceOwner,
@@ -98,7 +98,7 @@ namespace TicTacToeRoguelike.Tests.Effects
                     });
 
             PilotIndependentMultiplierRuneHandler handler =
-                new PilotIndependentMultiplierRuneHandler();
+                new PilotIndependentMultiplierRuneHandler(1.20m);
 
             Assert.That(
                 handler.CanHandle(context),
@@ -118,7 +118,7 @@ namespace TicTacToeRoguelike.Tests.Effects
                 new EffectEngine(
                     new IGameEffectHandler[]
                     {
-                        new PilotIndependentMultiplierRuneHandler()
+                        new PilotIndependentMultiplierRuneHandler(1.20m)
                     });
 
             EffectExecutionReport report =
@@ -171,11 +171,21 @@ namespace TicTacToeRoguelike.Tests.Effects
                 Is.EqualTo(14));
         }
 
+        [TestCase(0.0)]
+        [TestCase(-1.0)]
+        [TestCase(10.01)]
+        public void Constructor_RejectsInvalidConfiguredMultiplier(double value)
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(
+                () => new PilotIndependentMultiplierRuneHandler(
+                    Convert.ToDecimal(value)));
+        }
+
         [Test]
         public void DefaultFactory_RegistersPilotRuneHandler()
         {
             EffectEngine engine =
-                DefaultEffectEngineFactory.Create();
+                DefaultEffectEngineFactory.Create(1.20m);
 
             Assert.That(
                 engine.Handlers.Count,

@@ -56,7 +56,7 @@ namespace TicTacToeRoguelike.Tests.Effects
                         victoryMultiplier: 1.5m),
                     playerRunes,
                     enemyRunes,
-                    DefaultEffectEngineFactory.Create());
+                    DefaultEffectEngineFactory.Create(1.20m));
 
             BoardState fullBoard =
                 CreateFullBoard();

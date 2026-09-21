@@ -184,6 +184,17 @@ namespace TicTacToeRoguelike.Presentation.Board
                 SetProcess(false);
         }
 
+        public void CancelTransientAnimations()
+        {
+            _reactionTween?.Kill();
+            _reactionTween = null;
+            _eraseAnimating = false;
+            _eraseCompleted = null;
+            _sequenceAnimating = false;
+            _scoringSequence = null;
+            SetProcess(false);
+        }
+
         public void PlayRoundErase(
             Action completed)
         {

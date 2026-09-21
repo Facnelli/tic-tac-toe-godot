@@ -115,6 +115,18 @@ A runa de limpeza é conteúdo piloto do Marco 11. Os efeitos sintéticos usados
 para provar duas ações, turno extra, pulo, dano e mutações de inventário não são
 um catálogo comercial da alpha; esse conteúdo será composto no Marco 15.
 
+## Marco 12 — consolidação do combate no Godot
+
+O conteúdo piloto deixou de esconder parâmetros comerciais no domínio: o MULT
+da Runa do Eco vive no Resource Godot, é validado na composição do encontro e
+é injetado no handler. Reinícios agora invalidam a geração visual anterior,
+interrompem tweens/contagem/apagamento e descartam callbacks pendentes do
+`BoardView`, evitando trabalho antigo sobre um encontro novo.
+
+A distribuição .NET foi fechada com `TicTacToeRoguelike.Godot.sln` e
+`export_presets.cfg`. A build Windows debug foi exportada e executada fora do
+editor. Evidências, comandos e limites de validação estão em `MARCO-12.md`.
+
 ## Verificação
 
 A suíte EditMode pura do projeto Unity foi migrada para NUnit/.NET e recebeu

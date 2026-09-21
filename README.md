@@ -24,14 +24,17 @@ para Godot e a transferência de engine cobre os Marcos 5, 6 e 7.
   RNG com seed e proteção contra repetição/ciclos de efeitos.
 - A Pedra da Purificação piloto custa uma ação, pode limpar uma casa ocupada e
   possui um uso por instância a cada rodada; Player e Enemy usam o mesmo fluxo.
+- Marco 12: combate consolidado no Godot, MULT da Runa do Eco configurado e
+  validado via Resource, cancelamento seguro de animações/callbacks em reinício,
+  solution .NET e preset de exportação Windows executável fora do editor.
 - Casa central Golden e parâmetros padrão do protótipo Unity preservados.
 - Testes puros do projeto antigo migrados para NUnit/.NET.
 - CI compila o projeto C# e roda a suíte de regressão; o fechamento do Marco 11
   possui cobertura dedicada em `Tests/Effects/Marco11CapabilityIntegrationTests.cs`.
 
 Consulte [MIGRATION.md](MIGRATION.md) para a descrição técnica da transferência e
-[MARCO-11.md](MARCO-11.md) para o registro de conclusão, decisões e evidências do
-Marco 11.
+[MARCO-11.md](MARCO-11.md) para o fechamento das capacidades e
+[MARCO-12.md](MARCO-12.md) para a consolidação, validações e evidências de build.
 
 ## Abrindo no Godot
 

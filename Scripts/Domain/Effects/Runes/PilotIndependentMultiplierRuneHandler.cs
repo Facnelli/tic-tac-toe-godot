@@ -15,7 +15,17 @@ namespace TicTacToeRoguelike.Domain.Effects.Runes
     public sealed class PilotIndependentMultiplierRuneHandler :
         IGameEffectHandler
     {
-        public const decimal Multiplier = 1.20m;
+        private readonly decimal _multiplier;
+
+        public PilotIndependentMultiplierRuneHandler(decimal multiplier)
+        {
+            if (multiplier <= 0m || multiplier > 10m)
+                throw new ArgumentOutOfRangeException(
+                    nameof(multiplier),
+                    "O multiplicador independente deve estar no intervalo (0, 10].");
+
+            _multiplier = multiplier;
+        }
 
         public string HandlerId =>
             "effect.rune.pilot.independent-multiplier";
@@ -92,7 +102,7 @@ namespace TicTacToeRoguelike.Domain.Effects.Runes
                             rune.Definition.DisplayName,
                             context.Participant,
                             context.Participant,
-                            Multiplier,
+                            _multiplier,
                             sourceInstanceId:
                                 rune.InstanceId.Value));
             }

@@ -614,11 +614,39 @@ namespace TicTacToeRoguelike.Presentation.Encounters
 
         private void ClearCurrentScreen()
         {
+            CancelPresentationWork();
+
             foreach (Node child in GetChildren())
             {
                 RemoveChild(child);
                 child.QueueFree();
             }
+        }
+
+        private void CancelPresentationWork()
+        {
+            _encounterGeneration++;
+            _enemyTurnScheduled = false;
+            _scoreAnimationActive = false;
+            _roundEraseActive = false;
+            _animatedResolution = null;
+            _roundAnimationPhase = RoundAnimationPhase.None;
+            _scoreStepPrepared = false;
+            _damageShakeTarget = null;
+            SetProcess(false);
+
+            _playerFloatingTween?.Kill();
+            _enemyFloatingTween?.Kill();
+            _playerMultiplierTween?.Kill();
+            _enemyMultiplierTween?.Kill();
+            _playerFloatingTween = null;
+            _enemyFloatingTween = null;
+            _playerMultiplierTween = null;
+            _enemyMultiplierTween = null;
+
+            _boardView?.CancelTransientAnimations();
+            _combatAnimator?.ResetPresentation();
+            _runeTargeting.Reset();
         }
 
         private void BuildInterface()
@@ -1203,11 +1231,14 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                         _configuredVictoryLength,
                     victoryMultiplier: 1.5m);
 
+            PilotIndependentMultiplierRuneContent pilotContent =
+                PilotIndependentMultiplierRuneContent.LoadValidated();
+
             RuneInventoryState playerRunes =
-                StarterRuneCatalog.CreatePlayerInventory();
+                StarterRuneCatalog.CreatePlayerInventory(pilotContent);
 
             RuneInventoryState enemyRunes =
-                StarterRuneCatalog.CreateEnemyInventory();
+                StarterRuneCatalog.CreateEnemyInventory(pilotContent);
 
             _runeTargeting.Reset();
 
@@ -1224,7 +1255,8 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                 rules,
                 playerRunes,
                 enemyRunes,
-                DefaultEffectEngineFactory.Create(),
+                DefaultEffectEngineFactory.Create(
+                    pilotContent.IndependentMultiplier),
                 executor,
                 availability,
                 new ReactionStateFactory(),
@@ -2230,8 +2262,15 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                 "font_color",
                 Muted);
 
+            int eraseGeneration = _encounterGeneration;
             _boardView.PlayRoundErase(
-                OnRoundEraseFinished);
+                () =>
+                {
+                    if (eraseGeneration != _encounterGeneration)
+                        return;
+
+                    OnRoundEraseFinished();
+                });
         }
 
         private void OnRoundEraseFinished()
