@@ -1,4 +1,4 @@
-﻿namespace TicTacToeRoguelike.Domain.Turns
+namespace TicTacToeRoguelike.Domain.Turns
 {
     /// <summary>
     /// Explica por que um Turno chegou ao fim.
@@ -37,6 +37,7 @@
         /// O Turno foi abandonado antes de executar qualquer ação autoritativa,
         /// por exemplo durante reinício ou invalidação do fluxo.
         /// </summary>
-        Cancelled = 3
+        Cancelled = 3,
+        NoFurtherActions = 4
     }
 }

@@ -1,4 +1,6 @@
-﻿using System;
+using System;
+using TicTacToeRoguelike.Application.Effects;
+using TicTacToeRoguelike.Domain.Effects.Capabilities;
 using System.Collections.Generic;
 using TicTacToeRoguelike.Application.Actions;
 using TicTacToeRoguelike.Domain.Actions;
@@ -138,6 +140,11 @@ namespace TicTacToeRoguelike.Application.Encounters
         private readonly IEncounterTurnScheduler _turnScheduler;
 
         public EncounterState State { get; }
+        public EncounterEffects Effects { get; }
+        public TurnCompletion LastSkippedTurn { get; private set; }
+        private bool _skipOpponent;
+        private bool _endEffectsApplied;
+
 
         /// <summary>
         /// Composição padrão, suficiente para o jogo atual.
@@ -281,8 +288,11 @@ namespace TicTacToeRoguelike.Application.Encounters
             ScorePipeline scorePipeline,
             ClashResolver clashResolver,
             DamageResolver damageResolver,
-            IEncounterTurnScheduler turnScheduler)
+            IEncounterTurnScheduler turnScheduler,
+            EncounterEffects effects = null)
         {
+            Effects = effects ?? new EncounterEffects();
+            Effects.Bind();
             State = new EncounterState(
                 playerState,
                 enemyState,
@@ -384,6 +394,14 @@ namespace TicTacToeRoguelike.Application.Encounters
                 State.AcceptsActions);
 
             State.RecordActionResult(result);
+            if (result.WasApplied)
+            {
+                Effects.Lifecycle(State, EffectTrigger.AfterAction, action.Actor, executingTurn.TurnId);
+                if (TryEndFromEffects()) return result;
+                if (executingTurn.IsOpen && !_actionAvailabilityService.HasAvailableActions(State.Board, executingTurn.Actor))
+                    executingTurn.CompleteWithoutFurtherActions();
+            }
+
 
             if (result.WasApplied &&
                 executingTurn != null &&
@@ -423,10 +441,7 @@ namespace TicTacToeRoguelike.Application.Encounters
                     completion,
                     State.ReactionState);
 
-            State.OpenTurn(
-                nextTurn.Actor,
-                nextTurn.ActionBudget);
-
+            OpenTurn(nextTurn.Actor, nextTurn.ActionBudget);
             return completion;
         }
 
@@ -466,6 +481,8 @@ namespace TicTacToeRoguelike.Application.Encounters
             State.BeginRound(
                 board,
                 initialReactionState);
+            Effects.BeginRound();
+            LastSkippedTurn = null;
 
             bool hasAvailableActions =
                 _actionAvailabilityService.HasAvailableActions(
@@ -474,9 +491,7 @@ namespace TicTacToeRoguelike.Application.Encounters
 
             if (hasAvailableActions)
             {
-                State.OpenTurn(
-                    startingActor,
-                    actionBudget);
+                OpenTurn(startingActor, actionBudget);
 
                 return;
             }
@@ -546,9 +561,14 @@ namespace TicTacToeRoguelike.Application.Encounters
                 return;
             }
 
-            State.OpenTurn(
-                nextTurn.Actor,
-                nextTurn.ActionBudget);
+            if (_skipOpponent)
+            {
+                var skipped = State.OpenTurn(completion.Actor == ScoreActor.Player ? ScoreActor.Enemy : ScoreActor.Player, 1);
+                skipped.Skip(State.Board.Version);
+                LastSkippedTurn = TurnCompletion.CreateFrom(skipped);
+                State.BeginTurnResolution(LastSkippedTurn);
+            }
+            OpenTurn(nextTurn.Actor, nextTurn.ActionBudget);
         }
 
         private EncounterTurnPlan CreateNextTurnPlan(
@@ -572,7 +592,41 @@ namespace TicTacToeRoguelike.Application.Encounters
                     "O agendador produziu um plano de Turno inválido.");
             }
 
+            _skipOpponent = false;
+            if (completion.CanEvaluateReaction)
+                plan = Effects.NextTurn(State, completion.Actor, completion.TurnId, plan, out _skipOpponent);
             return plan;
+        }
+
+        private void OpenTurn(ScoreActor actor, int budget)
+        {
+            budget = Effects.OpeningBudget(State, actor, budget);
+            var turn = State.OpenTurn(actor, budget);
+            Effects.Lifecycle(State, EffectTrigger.TurnOpening, actor, turn.TurnId);
+            if (TryEndFromEffects()) return;
+            if (!_actionAvailabilityService.HasAvailableActions(State.Board, actor))
+            {
+                var current = CreateReactionState(State.Board);
+                var decision = _reactionRule.Evaluate(State.ReactionState, current, actor, false);
+                State.RecordReactionDecision(current, decision);
+                ResolveRound(decision);
+            }
+        }
+
+        private bool TryEndFromEffects()
+        {
+            if (!State.PlayerState.IsDefeated && !State.EnemyState.IsDefeated) return false;
+            FinishEncounterEffects();
+            State.RecordEffectEncounterEnd(new EncounterResult(
+                CombatantSnapshot.Capture(State.PlayerState), CombatantSnapshot.Capture(State.EnemyState), State.LastRoundResolution));
+            return true;
+        }
+
+        private void FinishEncounterEffects()
+        {
+            if (_endEffectsApplied) return;
+            _endEffectsApplied = true;
+            Effects.Lifecycle(State, EffectTrigger.EncounterEnded, ScoreActor.None);
         }
 
         private ReactionState CreateReactionState(
@@ -643,10 +697,11 @@ namespace TicTacToeRoguelike.Application.Encounters
              * DamageResolver aplica vida e escudo dentro desta única chamada.
              * Nenhum acknowledge, evento ou animação chamará dano novamente.
              */
+            var modifiers = clash.IsTie ? (Increase: 0, Prevention: 0) :
+                Effects.DamageModifiers(State, clash.AdvantageActor, clash.DisadvantageActor, clash.UnopposedScore);
             DamageReport damage = _damageResolver.Resolve(
-                clash,
-                State.PlayerState,
-                State.EnemyState);
+                clash, State.PlayerState, State.EnemyState,
+                modifiers.Increase, modifiers.Prevention, 0);
 
             CombatantSnapshot playerAfter =
                 CombatantSnapshot.Capture(State.PlayerState);
@@ -677,6 +732,8 @@ namespace TicTacToeRoguelike.Application.Encounters
                 roundResult,
                 roundResolution,
                 encounterResult);
+            Effects.Lifecycle(State, EffectTrigger.RoundResolved, ScoreActor.None);
+            TryEndFromEffects();
         }
 
         private EffectExecutionReport ResolveScoreEffects(
@@ -701,7 +758,8 @@ namespace TicTacToeRoguelike.Application.Encounters
                     ownRunes.Runes,
                     opponentRunes.Runes,
                     State.RoundNumber,
-                    isWinner);
+                    isWinner,
+                    $"round:{State.RoundNumber}:score:{participant}");
 
             return _effectEngine.Resolve(context);
         }

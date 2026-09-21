@@ -1,4 +1,6 @@
-﻿using System;
+using System;
+using System.Linq;
+using TicTacToeRoguelike.Domain.Turns;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using TicTacToeRoguelike.Domain.Actions;
@@ -94,6 +96,10 @@ namespace TicTacToeRoguelike.Application.Actions
             CellMark.O;
 
         private readonly MoveValidator _moveValidator;
+        private readonly ActionCatalog _catalog;
+        public ActionAvailabilityService(ActionCatalog catalog) : this()
+        { _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog)); }
+
 
         private readonly ReadOnlyCollection<IActionAvailabilityProvider>
             _specialActionProviders;
@@ -205,6 +211,15 @@ namespace TicTacToeRoguelike.Application.Actions
                     normalMoveMark);
 
             int availableSpecialProviderCount = 0;
+            if (_catalog != null)
+            {
+                var probe = new TurnContext(actor, 1, board.Version, 1);
+                var actions = _catalog.GetAvailableActions(board, probe, GameActionOrigin.EncounterRule);
+                var normal = actions.OfType<PlaceMarkAction>().Select(a => a.Target).ToList();
+                int special = actions.Count(a => a.ActionType != GameActionType.PlaceMark);
+                return new ActionAvailabilityReport(actor, board.Version, normal, special);
+            }
+
 
             for (int index = 0;
                  index < _specialActionProviders.Count;

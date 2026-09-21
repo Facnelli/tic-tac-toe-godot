@@ -58,9 +58,10 @@ namespace TicTacToeRoguelike.Presentation.Encounters
 
         private EncounterEngine _engine;
         private ActionCatalog _catalog;
-        private BasicTicTacToePolicy _enemyPolicy;
+        private IAgentPolicy _enemyPolicy;
         private BoardView _boardView;
         private CombatReportAnimator _combatAnimator;
+        private BoardActionSelector _actionSelector;
         private RuneInventoryView _playerRuneView;
         private RuneInventoryView _enemyRuneView;
 
@@ -854,7 +855,8 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             StyleButton(_nextRoundButton);
             _nextRoundButton.Pressed += OnNextRoundPressed;
             column.AddChild(_nextRoundButton);
-
+            _actionSelector = new BoardActionSelector();
+            column.AddChild(_actionSelector);
             return panel;
         }
 
@@ -1174,19 +1176,6 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             MoveService moveService =
                 new MoveService(moveValidator);
 
-            _catalog =
-                ActionCatalog.CreateDefault(
-                    moveValidator,
-                    moveService);
-
-            ActionExecutor executor =
-                ActionExecutor.CreateWithCatalog(_catalog);
-
-            ActionAvailabilityService availability =
-                new ActionAvailabilityService(
-                    moveValidator,
-                    Array.Empty<IActionAvailabilityProvider>());
-
             CombatantState player =
                 new CombatantState(
                     "player",
@@ -1214,6 +1203,13 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             RuneInventoryState enemyRunes =
                 StarterRuneCatalog.CreateEnemyInventory();
 
+            var effects = new EncounterEffects(seed: 11);
+            var clear = new ClearCellRuneActions(playerRunes, enemyRunes, effects.ActionUsage);
+            _catalog = new ActionCatalog(
+                new IGameActionProvider[] { new NormalMoveActionProvider(moveValidator), clear },
+                new IGameActionHandler[] { new PlaceMarkActionHandler(moveService), clear });
+            var executor = ActionExecutor.CreateWithCatalog(_catalog);
+            var availability = new ActionAvailabilityService(_catalog);
             _engine = new EncounterEngine(
                 player,
                 enemy,
@@ -1228,14 +1224,14 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                 new ScorePipeline(),
                 new ClashResolver(),
                 new DamageResolver(),
-                new AlternatingEncounterTurnScheduler());
+                new AlternatingEncounterTurnScheduler(), effects);
 
             int searchDepth =
                 _configuredBoardSize <= 4 ? 10 : 7;
 
-            _enemyPolicy = new BasicTicTacToePolicy(
+            _enemyPolicy = new RuneAwareAgentPolicy(new BasicTicTacToePolicy(
                 maximumSearchDepth: searchDepth,
-                maximumVisitedNodes: 100_000);
+                maximumVisitedNodes: 100_000));
         }
 
         private void StartFirstRound()
@@ -1304,22 +1300,13 @@ namespace TicTacToeRoguelike.Presentation.Encounters
                     _engine.State.CurrentTurn,
                     GameActionOrigin.PlayerInput);
 
-            GameAction selected = null;
-
-            for (int i = 0; i < actions.Count; i++)
-            {
-                if (actions[i] is PlaceMarkAction place &&
-                    place.Target == coordinate)
-                {
-                    selected = place;
-                    break;
-                }
-            }
+            GameAction selected = _actionSelector.SelectTarget(actions, coordinate);
 
             if (selected == null)
                 return;
 
             _engine.ExecuteAction(selected);
+            _actionSelector.ResetSelection();
             AfterAuthoritativeAction();
         }
 
@@ -1466,8 +1453,11 @@ namespace TicTacToeRoguelike.Presentation.Encounters
             EncounterState state = _engine.State;
 
             bool playerCanClick =
-                state.AcceptsActions &&
+                state.AcceptsActions && !_scoreAnimationActive && !_roundEraseActive &&
                 state.CurrentActor == ScoreActor.Player;
+            _actionSelector?.Refresh(playerCanClick
+                ? _catalog.GetAvailableActions(state.Board, state.CurrentTurn, GameActionOrigin.PlayerInput)
+                : System.Array.Empty<GameAction>());
 
             if (state.Board != null)
             {

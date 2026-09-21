@@ -88,6 +88,8 @@ namespace TicTacToeRoguelike.Application.Actions
                         throw new InvalidOperationException("Um provider produziu ação para outro ator, Turno ou BoardVersion.");
                     }
 
+                    if (!_handlers.ContainsKey(action.ActionType))
+                        throw new InvalidOperationException("An offered action has no registered handler.");
                     result.Add(action);
                 }
             }
