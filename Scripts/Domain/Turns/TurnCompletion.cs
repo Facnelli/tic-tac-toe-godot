@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using TicTacToeRoguelike.Domain.Scoring;
 
 namespace TicTacToeRoguelike.Domain.Turns
@@ -97,7 +97,7 @@ namespace TicTacToeRoguelike.Domain.Turns
         /// interpretados como tentativas fracassadas de reação.
         /// </summary>
         public bool CanEvaluateReaction =>
-            EndedByActionBudget &&
+            (EndedByActionBudget || EndReason == TurnEndReason.NoFurtherActions) &&
             HasPlayedAction;
 
         private TurnCompletion(
@@ -145,7 +145,7 @@ namespace TicTacToeRoguelike.Domain.Turns
             }
 
             TurnEndReason endReason =
-                GetEndReason(turnContext.Status);
+                turnContext.ExhaustedLegalActions ? TurnEndReason.NoFurtherActions : GetEndReason(turnContext.Status);
 
             return new TurnCompletion(
                 turnContext.TurnId,

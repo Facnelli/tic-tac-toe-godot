@@ -18,11 +18,20 @@ para Godot e a transferência de engine cobre os Marcos 5, 6 e 7.
 - Marco 10: primeira runa funcional (`rune.pilot.independent-multiplier`),
   carregada de um Resource Godot, aplicando MULT ×1,20 com animação genérica da
   pedra de origem e do multiplicador.
+- Marco 11: capacidades tipadas além de pontuação: ação de runa para limpar
+  casas pelo catálogo comum, modificadores de quantidade de ações/turnos,
+  dano direto e modificadores de dano, mutações de inventário com proveniência,
+  RNG com seed e proteção contra repetição/ciclos de efeitos.
+- A Pedra da Purificação piloto custa uma ação, pode limpar uma casa ocupada e
+  possui um uso por instância a cada rodada; Player e Enemy usam o mesmo fluxo.
 - Casa central Golden e parâmetros padrão do protótipo Unity preservados.
 - Testes puros do projeto antigo migrados para NUnit/.NET.
-- CI compila o projeto C# e roda a suíte de regressão.
+- CI compila o projeto C# e roda a suíte de regressão; o fechamento do Marco 11
+  possui cobertura dedicada em `Tests/Effects/Marco11CapabilityIntegrationTests.cs`.
 
-Consulte [MIGRATION.md](MIGRATION.md) para a descrição técnica da transferência.
+Consulte [MIGRATION.md](MIGRATION.md) para a descrição técnica da transferência e
+[MARCO-11.md](MARCO-11.md) para o registro de conclusão, decisões e evidências do
+Marco 11.
 
 ## Abrindo no Godot
 

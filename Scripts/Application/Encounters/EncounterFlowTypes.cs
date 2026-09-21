@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using TicTacToeRoguelike.Domain.Boards;
 using TicTacToeRoguelike.Domain.Combat;
 using TicTacToeRoguelike.Domain.Effects;
@@ -618,11 +618,17 @@ namespace TicTacToeRoguelike.Application.Encounters
         public EncounterOutcome Outcome { get; }
         public RoundResolution FinalRound { get; }
 
-        public CombatantSnapshot Player =>
-            FinalRound.PlayerAfter;
+        public CombatantSnapshot Player { get; }
+        public CombatantSnapshot Enemy { get; }
 
-        public CombatantSnapshot Enemy =>
-            FinalRound.EnemyAfter;
+        public EncounterResult(CombatantSnapshot player, CombatantSnapshot enemy, RoundResolution finalRound = null)
+        {
+            Player = player ?? throw new ArgumentNullException(nameof(player));
+            Enemy = enemy ?? throw new ArgumentNullException(nameof(enemy));
+            if (player.Actor != ScoreActor.Player || enemy.Actor != ScoreActor.Enemy) throw new ArgumentException("Incorrect participants.");
+            FinalRound = finalRound;
+            Outcome = DetermineEncounterOutcome(Player, Enemy);
+        }
 
         public EncounterResult(
             RoundResolution finalRound)
@@ -637,9 +643,9 @@ namespace TicTacToeRoguelike.Application.Encounters
                     nameof(finalRound));
             }
 
-            Outcome = DetermineEncounterOutcome(
-                Player,
-                Enemy);
+            Player = FinalRound.PlayerAfter;
+            Enemy = FinalRound.EnemyAfter;
+            Outcome = DetermineEncounterOutcome(Player, Enemy);
         }
 
         private static EncounterOutcome DetermineEncounterOutcome(

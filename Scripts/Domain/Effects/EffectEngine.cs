@@ -21,6 +21,7 @@ namespace TicTacToeRoguelike.Domain.Effects
         private readonly ReadOnlyCollection<RuneInstance> _ownRunes;
         private readonly ReadOnlyCollection<RuneInstance> _opponentRunes;
 
+        public string EventId { get; }
         public EffectEventKind EventKind { get; }
         public ScoreActor Participant { get; }
         public BoardState BoardSnapshot { get; }
@@ -36,7 +37,7 @@ namespace TicTacToeRoguelike.Domain.Effects
             IEnumerable<RuneInstance> ownRunes,
             IEnumerable<RuneInstance> opponentRunes,
             int roundNumber,
-            bool isWinner)
+            bool isWinner, string eventId = null)
         {
             if (!Enum.IsDefined(typeof(EffectEventKind), eventKind))
             {
@@ -68,6 +69,7 @@ namespace TicTacToeRoguelike.Domain.Effects
                     "A rodada precisa começar em 1.");
             }
 
+            EventId = eventId;
             EventKind = eventKind;
             Participant = participant;
             BoardSnapshot = board.Clone();
@@ -92,7 +94,7 @@ namespace TicTacToeRoguelike.Domain.Effects
                 _ownRunes,
                 _opponentRunes,
                 RoundNumber,
-                IsWinner);
+                IsWinner, EventId);
         }
 
         private static ReadOnlyCollection<RuneInstance> CopyRunes(
@@ -280,6 +282,7 @@ namespace TicTacToeRoguelike.Domain.Effects
     public sealed class EffectEngine
     {
         private readonly ReadOnlyCollection<IGameEffectHandler> _handlers;
+        private readonly Dictionary<string, EffectExecutionReport> _events = new Dictionary<string, EffectExecutionReport>(StringComparer.Ordinal);
 
         public IReadOnlyList<IGameEffectHandler> Handlers => _handlers;
 
@@ -341,6 +344,8 @@ namespace TicTacToeRoguelike.Domain.Effects
             if (context == null)
                 throw new ArgumentNullException(nameof(context));
 
+            string eventKey = context.EventId == null ? null : $"{context.EventId}:{context.Participant}:{context.EventKind}";
+            if (eventKey != null && _events.TryGetValue(eventKey, out var cached)) return cached;
             List<EffectExecutionStep> steps =
                 new List<EffectExecutionStep>();
 
@@ -414,10 +419,9 @@ namespace TicTacToeRoguelike.Domain.Effects
                 order++;
             }
 
-            return new EffectExecutionReport(
-                context,
-                steps,
-                contributions);
+            var report = new EffectExecutionReport(context, steps, contributions);
+            if (eventKey != null) _events.Add(eventKey, report);
+            return report;
         }
 
         private static int CompareHandlers(

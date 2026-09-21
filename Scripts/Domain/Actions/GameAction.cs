@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using TicTacToeRoguelike.Domain.Scoring;
 
 namespace TicTacToeRoguelike.Domain.Actions
@@ -21,7 +21,8 @@ namespace TicTacToeRoguelike.Domain.Actions
         /// <summary>
         /// Coloca uma marca em uma casa do tabuleiro.
         /// </summary>
-        PlaceMark = 1
+        PlaceMark = 1,
+        ClearCell = 2
 
         /*
          * Adições futuras:

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using TicTacToeRoguelike.Domain.Actions;
 using TicTacToeRoguelike.Domain.Boards;
 using TicTacToeRoguelike.Domain.Combat;
@@ -305,6 +305,13 @@ namespace TicTacToeRoguelike.Application.Encounters
             Phase = LastEncounterResult != null
                 ? EncounterPhase.EncounterEnded
                 : EncounterPhase.WaitingForNextRound;
+        }
+
+        internal void RecordEffectEncounterEnd(EncounterResult result)
+        {
+            LastEncounterResult = result ?? throw new ArgumentNullException(nameof(result));
+            CurrentTurn = null;
+            if (Phase != EncounterPhase.RoundResolved) Phase = EncounterPhase.EncounterEnded;
         }
 
         internal void MarkFaulted()

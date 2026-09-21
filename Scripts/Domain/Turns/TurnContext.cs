@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using TicTacToeRoguelike.Domain.Scoring;
 
 namespace TicTacToeRoguelike.Domain.Turns
@@ -110,6 +110,7 @@ namespace TicTacToeRoguelike.Domain.Turns
         /// Estado atual do Turno.
         /// </summary>
         public TurnStatus Status { get; private set; }
+        public bool ExhaustedLegalActions { get; private set; }
 
         /// <summary>
         /// Informa se o Turno ainda aceita ações.
@@ -256,6 +257,14 @@ namespace TicTacToeRoguelike.Domain.Turns
         /// depois de uma ação esconderia uma alteração real do tabuleiro e poderia
         /// impedir indevidamente a avaliação da reação.
         /// </summary>
+        public void CompleteWithoutFurtherActions()
+        {
+            EnsureOpen();
+            if (!HasPlayedAction) throw new InvalidOperationException("An unplayed turn is not a reaction attempt.");
+            ExhaustedLegalActions = true;
+            Status = TurnStatus.Completed;
+        }
+
         public void Skip(long finalBoardVersion)
         {
             EnsureCanEndWithoutPlayedAction();

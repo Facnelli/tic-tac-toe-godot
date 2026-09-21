@@ -1,4 +1,6 @@
 using System;
+using System.Linq;
+using TicTacToeRoguelike.Domain.Effects.Capabilities;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using TicTacToeRoguelike.Domain.Scoring;
@@ -19,7 +21,8 @@ namespace TicTacToeRoguelike.Domain.Runes
         Replaced = 2,
         Sacrificed = 3,
         Destroyed = 4,
-        EncounterSetup = 5
+        EncounterSetup = 5,
+        Broken = 6
     }
 
     public sealed class RuneRemovalResult
@@ -151,6 +154,34 @@ namespace TicTacToeRoguelike.Domain.Runes
                 reason);
 
             return true;
+        }
+
+        public RuneCommandReport Apply(SourcedEffect<RuneCommand> effect)
+        {
+            if (effect == null) throw new ArgumentNullException(nameof(effect));
+            RuneCommand command = effect.Output;
+            if (command.Owner != Owner) throw new ArgumentException("Inventory owner mismatch.");
+            int index = IndexOf(command.Target);
+            if (index < 0) return new RuneCommandReport(effect, RuneCommandStatus.MissingTarget, null, null);
+            RuneInstance before = _runes[index];
+            if (command is RemoveRuneCommand remove)
+            {
+                TryRemove(command.Target, remove.Reason, out RuneRemovalResult removal);
+                return new RuneCommandReport(effect, RuneCommandStatus.Applied, before, null, removal);
+            }
+            if (command is ChangeRuneAttributeCommand change)
+            {
+                if (before.Attributes.Contains(change.Attribute) == change.Add)
+                    return new RuneCommandReport(effect, RuneCommandStatus.NoChange, before, before);
+                if (!change.Add && change.Attribute == RuneAttributeId.Intangible && OccupiedSlots >= Capacity)
+                    return new RuneCommandReport(effect, RuneCommandStatus.CapacityReached, before, before);
+                var attributes = before.Attributes.Values.ToList();
+                if (change.Add) attributes.Add(change.Attribute); else attributes.Remove(change.Attribute);
+                var after = new RuneInstance(before.InstanceId, before.Definition, new RuneAttributeSet(attributes));
+                _runes[index] = after;
+                return new RuneCommandReport(effect, RuneCommandStatus.Applied, before, after);
+            }
+            throw new ArgumentException("Unsupported rune command.");
         }
 
         private int IndexOf(

@@ -83,6 +83,38 @@ O mesmo handler funciona para Player e Enemy. Duas cópias da runa criam duas
 contribuições independentes (1,20 × 1,20 = 1,44), mantendo ordenação estável por
 `RuneInstanceId`.
 
+## Marco 11 — capacidades de runas e efeitos
+
+O Marco 11 amplia o fluxo sem criar um executor paralelo de gameplay.
+
+- `ClearCellRuneActions` participa do mesmo `ActionCatalog` como provider e
+  handler. A Pedra da Purificação piloto consome uma ação, possui um uso por
+  instância a cada rodada e só oferece casas ocupadas. Ela continua disponível
+  em tabuleiro cheio enquanto existir alvo válido.
+- `EncounterEffects` coordena pipelines tipados de turno, dano direto,
+  aumento/prevenção de dano e mutações de inventário. O serviço proprietário
+  continua sendo responsável pela alteração autoritativa de tabuleiro, vida e
+  inventário.
+- Quantidade adicional de ações entra na abertura do `TurnContext`. Turno extra
+  e pulo passam pelo agendamento do encontro. Um turno pulado é registrado, mas
+  não é tratado como tentativa de reação e não apaga a decisão de reação do
+  turno que realmente foi jogado.
+- `RuneCommandReport` conserva evento, origem, antes/depois e motivo da remoção.
+  Descarte, substituição e quebra permanecem motivos distintos.
+- `EffectExecutionJournal` fornece identidade de evento, supressão de repetição,
+  proteção de ciclo e limite de cadeia. A ordenação usa prioridade e IDs estáveis.
+- `SeededRandomSource` e `EffectRandom` permitem rolagens reproduzíveis e
+  registradas. `RuneInstanceIdSequence` fornece IDs sequenciais determinísticos
+  para conteúdo gerado; a geração de recompensas/runas de uma partida será
+  conectada a essa sequência nos marcos de progressão.
+- O orçamento total de uma oportunidade possui limite de segurança de 16 ações;
+  o limite padrão de cadeia de efeitos é 16. Uma mesma fonte só pode substituir
+  o agendamento uma vez por rodada.
+
+A runa de limpeza é conteúdo piloto do Marco 11. Os efeitos sintéticos usados
+para provar duas ações, turno extra, pulo, dano e mutações de inventário não são
+um catálogo comercial da alpha; esse conteúdo será composto no Marco 15.
+
 ## Verificação
 
 A suíte EditMode pura do projeto Unity foi migrada para NUnit/.NET e recebeu

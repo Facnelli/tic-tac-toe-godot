@@ -1,4 +1,6 @@
 using System;
+using TicTacToeRoguelike.Application.Actions;
+using TicTacToeRoguelike.Infrastructure.Random;
 using Godot;
 using TicTacToeRoguelike.Domain.Runes;
 
@@ -54,9 +56,9 @@ namespace TicTacToeRoguelike.Content.Runes
 
             Add(
                 inventory,
-                "rune.echo-stone",
-                "Eco de Pedra",
-                "Runa estável de teste sem efeito próprio nesta versão.",
+                ClearCellRuneActions.PilotDefinitionId,
+                "Pedra da Purificação",
+                "Limpa os símbolos de uma casa. Custa uma ação; uma vez por rodada.",
                 RuneRarity.Common,
                 "ᚠ");
 
@@ -93,9 +95,9 @@ namespace TicTacToeRoguelike.Content.Runes
 
             Add(
                 inventory,
-                "rune.grey-mark",
-                "Marca Cinzenta",
-                "Runa de teste do oponente sem efeito próprio nesta versão.",
+                ClearCellRuneActions.PilotDefinitionId,
+                "Pedra da Purificação",
+                "Limpa os símbolos de uma casa. Custa uma ação; uma vez por rodada.",
                 RuneRarity.Common,
                 "ᚦ");
 
@@ -172,9 +174,9 @@ namespace TicTacToeRoguelike.Content.Runes
         {
             RuneInventoryAddResult result =
                 inventory.TryAdd(
-                    RuneInstance.Create(
-                        definition,
-                        attributes));
+                    new RuneInstance(
+                        new RuneInstanceId($"starter:{inventory.Owner}:{inventory.Count:D4}"),
+                        definition, new RuneAttributeSet(attributes)));
 
             if (result !=
                 RuneInventoryAddResult.Added)
